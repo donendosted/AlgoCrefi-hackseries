@@ -20,7 +20,7 @@
 | Service | URL |
 |---------|-----|
 | **Frontend (Vercel)** | https://algocrefi.vercel.app |
-| **Backend (Render)** | https://algocrefi-backend.onrender.com |
+| **Backend (Render)** | https://algocrefi-backend-bdm0.onrender.com |
 | **Smart Contract** | https://lora.algokit.io/testnet/application/758675636 |
 
 ## 🌟 Features
