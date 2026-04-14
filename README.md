@@ -9,6 +9,26 @@
 > **Lend. Earn. On-chain.**  
 > A permissionless algorithmic lending protocol built on Algorand, featuring collateralized loans, AURA credit scoring, and unsecured lending.
 
+## 💡 Vision
+
+**The Problem:**  
+Over 200 million blockchain users hold stablecoins as their primary digital asset, yet face a critical liquidity gap. When they need cash for everyday needs—a cup of coffee, emergency expenses—they must either sell their assets (triggering taxable events) or lack access entirely, as traditional financial products require credit cards, bank accounts, and identity verification.
+
+**Our Solution:**  
+AlgoCreFi is a decentralized, non-custodial pool-based micro-lending platform where your wallet address is your identity. Users can:
+- Instantly borrow ALGO by collateralizing stablecoins (USDC) at 150% LTV
+- Build an on-chain credit reputation ("AURA") through responsible repayment
+- Access collateral-free unsecured loans once their AURA score reaches 30 points
+- Earn yield by depositing ALGO into the liquidity pool
+
+**Key Differentiators:**
+- **Truly Anonymous** - No KYC, wallet address is the only identity
+- **Instant Loans** - Borrow in seconds, not days
+- **No Peer-to-Peer** - Decentralized pool model ensures instant liquidity
+- **Automated Risk Management** - Smart contracts handle defaults via Tinyman DEX integration
+
+**Vision:** Democratize access to liquidity while preserving asset ownership and financial privacy.
+
 ## 📺 Demo Video
 
 [![AlgoCreFi Demo](https://img.youtube.com/vi/muDi6-bxl84/0.jpg)](https://youtu.be/muDi6-bxl84)
