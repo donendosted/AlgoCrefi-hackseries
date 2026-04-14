@@ -1,0 +1,668 @@
+{
+  "version": 3,
+  "sources": [
+    "../../algocrefi_vault/contract.py"
+  ],
+  "mappings": ";;;;;;;;;;;;;;;;;;;;;;;;;;;AAOQ;AAAqB;AAArB;AAHR;;AAAA;;;AAAA;;AAAA;AAAA;AAAA;;AAAA;AAAA;;;;;;;;;;;;;;;;;AAAA;;;AAAA;;;;;;;;AAAA;;;;;;;;;AAKK;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAEG;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAFH;AAAA;AAIA;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAEU;AAAA;AAAA;AAAA;AAAA;AAAA;;AAAA;AAAP;AACA;AAAA;AAAA;AAAA;AAAA;AAHH;AAAA;AAOU;AAAA;AAAA;AAAA;AAFV;AAAA;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA",
+  "op_pc_offset": 0,
+  "pc_events": {
+    "1": {
+      "subroutine": "algopy.arc4.ARC4Contract.approval_program",
+      "params": {},
+      "block": "main",
+      "stack_in": [],
+      "op": "intcblock 0 1 8"
+    },
+    "6": {
+      "op": "bytecblock \"total_balance\""
+    },
+    "22": {
+      "op": "txn ApplicationID",
+      "defined_out": [
+        "tmp%0#0"
+      ],
+      "stack_out": [
+        "tmp%0#0"
+      ]
+    },
+    "24": {
+      "op": "bnz main_after_if_else@2",
+      "stack_out": []
+    },
+    "27": {
+      "op": "bytec_0 // \"total_balance\"",
+      "defined_out": [
+        "\"total_balance\""
+      ],
+      "stack_out": [
+        "\"total_balance\""
+      ]
+    },
+    "28": {
+      "op": "intc_0 // 0",
+      "defined_out": [
+        "\"total_balance\"",
+        "0"
+      ],
+      "stack_out": [
+        "\"total_balance\"",
+        "0"
+      ]
+    },
+    "29": {
+      "op": "app_global_put",
+      "stack_out": []
+    },
+    "30": {
+      "block": "main_after_if_else@2",
+      "stack_in": [],
+      "op": "txn NumAppArgs",
+      "defined_out": [
+        "tmp%0#1"
+      ],
+      "stack_out": [
+        "tmp%0#1"
+      ]
+    },
+    "32": {
+      "op": "bz main___algopy_default_create@12",
+      "stack_out": []
+    },
+    "35": {
+      "op": "txn OnCompletion",
+      "defined_out": [
+        "tmp%2#0"
+      ],
+      "stack_out": [
+        "tmp%2#0"
+      ]
+    },
+    "37": {
+      "op": "!",
+      "defined_out": [
+        "tmp%3#0"
+      ],
+      "stack_out": [
+        "tmp%3#0"
+      ]
+    },
+    "38": {
+      "op": "assert",
+      "stack_out": []
+    },
+    "39": {
+      "op": "txn ApplicationID",
+      "defined_out": [
+        "tmp%4#0"
+      ],
+      "stack_out": [
+        "tmp%4#0"
+      ]
+    },
+    "41": {
+      "op": "assert",
+      "stack_out": []
+    },
+    "42": {
+      "op": "pushbytess 0x6e2ebc9b 0x21f1ddff 0x6ca059b9 // method \"deposit(uint64)void\", method \"withdraw(uint64)void\", method \"get_total_balance()uint64\"",
+      "defined_out": [
+        "Method(deposit(uint64)void)",
+        "Method(get_total_balance()uint64)",
+        "Method(withdraw(uint64)void)"
+      ],
+      "stack_out": [
+        "Method(deposit(uint64)void)",
+        "Method(withdraw(uint64)void)",
+        "Method(get_total_balance()uint64)"
+      ]
+    },
+    "59": {
+      "op": "txna ApplicationArgs 0",
+      "defined_out": [
+        "Method(deposit(uint64)void)",
+        "Method(get_total_balance()uint64)",
+        "Method(withdraw(uint64)void)",
+        "tmp%6#0"
+      ],
+      "stack_out": [
+        "Method(deposit(uint64)void)",
+        "Method(withdraw(uint64)void)",
+        "Method(get_total_balance()uint64)",
+        "tmp%6#0"
+      ]
+    },
+    "62": {
+      "op": "match deposit withdraw get_total_balance",
+      "stack_out": []
+    },
+    "70": {
+      "op": "err"
+    },
+    "71": {
+      "block": "main___algopy_default_create@12",
+      "stack_in": [],
+      "op": "txn OnCompletion",
+      "defined_out": [
+        "tmp%7#0"
+      ],
+      "stack_out": [
+        "tmp%7#0"
+      ]
+    },
+    "73": {
+      "op": "!",
+      "defined_out": [
+        "tmp%8#0"
+      ],
+      "stack_out": [
+        "tmp%8#0"
+      ]
+    },
+    "74": {
+      "op": "txn ApplicationID",
+      "defined_out": [
+        "tmp%8#0",
+        "tmp%9#0"
+      ],
+      "stack_out": [
+        "tmp%8#0",
+        "tmp%9#0"
+      ]
+    },
+    "76": {
+      "op": "!",
+      "defined_out": [
+        "tmp%10#0",
+        "tmp%8#0"
+      ],
+      "stack_out": [
+        "tmp%8#0",
+        "tmp%10#0"
+      ]
+    },
+    "77": {
+      "op": "&&",
+      "defined_out": [
+        "tmp%11#0"
+      ],
+      "stack_out": [
+        "tmp%11#0"
+      ]
+    },
+    "78": {
+      "op": "return",
+      "defined_out": [],
+      "stack_out": []
+    },
+    "79": {
+      "subroutine": "smart_contracts.algocrefi_vault.contract.AlgocrefiVault.deposit[routing]",
+      "params": {},
+      "block": "deposit",
+      "stack_in": [],
+      "op": "txna ApplicationArgs 1",
+      "defined_out": [
+        "tmp%0#0"
+      ],
+      "stack_out": [
+        "tmp%0#0"
+      ]
+    },
+    "82": {
+      "op": "dup",
+      "defined_out": [
+        "tmp%0#0",
+        "tmp%0#0 (copy)"
+      ],
+      "stack_out": [
+        "tmp%0#0",
+        "tmp%0#0 (copy)"
+      ]
+    },
+    "83": {
+      "op": "len",
+      "defined_out": [
+        "len%0#0",
+        "tmp%0#0"
+      ],
+      "stack_out": [
+        "tmp%0#0",
+        "len%0#0"
+      ]
+    },
+    "84": {
+      "op": "intc_2 // 8",
+      "defined_out": [
+        "8",
+        "len%0#0",
+        "tmp%0#0"
+      ],
+      "stack_out": [
+        "tmp%0#0",
+        "len%0#0",
+        "8"
+      ]
+    },
+    "85": {
+      "op": "==",
+      "defined_out": [
+        "eq%0#0",
+        "tmp%0#0"
+      ],
+      "stack_out": [
+        "tmp%0#0",
+        "eq%0#0"
+      ]
+    },
+    "86": {
+      "error": "invalid number of bytes for arc4.uint64",
+      "op": "assert // invalid number of bytes for arc4.uint64",
+      "stack_out": [
+        "tmp%0#0"
+      ]
+    },
+    "87": {
+      "op": "btoi",
+      "defined_out": [
+        "amount#0"
+      ],
+      "stack_out": [
+        "amount#0"
+      ]
+    },
+    "88": {
+      "op": "intc_0 // 0",
+      "defined_out": [
+        "0",
+        "amount#0"
+      ],
+      "stack_out": [
+        "amount#0",
+        "0"
+      ]
+    },
+    "89": {
+      "op": "bytec_0 // \"total_balance\"",
+      "defined_out": [
+        "\"total_balance\"",
+        "0",
+        "amount#0"
+      ],
+      "stack_out": [
+        "amount#0",
+        "0",
+        "\"total_balance\""
+      ]
+    },
+    "90": {
+      "op": "app_global_get_ex",
+      "defined_out": [
+        "amount#0",
+        "maybe_exists%0#0",
+        "maybe_value%0#0"
+      ],
+      "stack_out": [
+        "amount#0",
+        "maybe_value%0#0",
+        "maybe_exists%0#0"
+      ]
+    },
+    "91": {
+      "error": "check self.total_balance exists",
+      "op": "assert // check self.total_balance exists",
+      "stack_out": [
+        "amount#0",
+        "maybe_value%0#0"
+      ]
+    },
+    "92": {
+      "op": "+",
+      "defined_out": [
+        "tmp%0#1"
+      ],
+      "stack_out": [
+        "tmp%0#1"
+      ]
+    },
+    "93": {
+      "op": "bytec_0 // \"total_balance\"",
+      "stack_out": [
+        "tmp%0#1",
+        "\"total_balance\""
+      ]
+    },
+    "94": {
+      "op": "swap",
+      "stack_out": [
+        "\"total_balance\"",
+        "tmp%0#1"
+      ]
+    },
+    "95": {
+      "op": "app_global_put",
+      "stack_out": []
+    },
+    "96": {
+      "op": "intc_1 // 1",
+      "defined_out": [
+        "1"
+      ],
+      "stack_out": [
+        "1"
+      ]
+    },
+    "97": {
+      "op": "return",
+      "stack_out": []
+    },
+    "98": {
+      "subroutine": "smart_contracts.algocrefi_vault.contract.AlgocrefiVault.withdraw[routing]",
+      "params": {},
+      "block": "withdraw",
+      "stack_in": [],
+      "op": "txna ApplicationArgs 1",
+      "defined_out": [
+        "tmp%0#0"
+      ],
+      "stack_out": [
+        "tmp%0#0"
+      ]
+    },
+    "101": {
+      "op": "dup",
+      "defined_out": [
+        "tmp%0#0",
+        "tmp%0#0 (copy)"
+      ],
+      "stack_out": [
+        "tmp%0#0",
+        "tmp%0#0 (copy)"
+      ]
+    },
+    "102": {
+      "op": "len",
+      "defined_out": [
+        "len%0#0",
+        "tmp%0#0"
+      ],
+      "stack_out": [
+        "tmp%0#0",
+        "len%0#0"
+      ]
+    },
+    "103": {
+      "op": "intc_2 // 8",
+      "defined_out": [
+        "8",
+        "len%0#0",
+        "tmp%0#0"
+      ],
+      "stack_out": [
+        "tmp%0#0",
+        "len%0#0",
+        "8"
+      ]
+    },
+    "104": {
+      "op": "==",
+      "defined_out": [
+        "eq%0#0",
+        "tmp%0#0"
+      ],
+      "stack_out": [
+        "tmp%0#0",
+        "eq%0#0"
+      ]
+    },
+    "105": {
+      "error": "invalid number of bytes for arc4.uint64",
+      "op": "assert // invalid number of bytes for arc4.uint64",
+      "stack_out": [
+        "tmp%0#0"
+      ]
+    },
+    "106": {
+      "op": "btoi",
+      "defined_out": [
+        "amount#0"
+      ],
+      "stack_out": [
+        "amount#0"
+      ]
+    },
+    "107": {
+      "op": "intc_0 // 0",
+      "defined_out": [
+        "0",
+        "amount#0"
+      ],
+      "stack_out": [
+        "amount#0",
+        "0"
+      ]
+    },
+    "108": {
+      "op": "bytec_0 // \"total_balance\"",
+      "defined_out": [
+        "\"total_balance\"",
+        "0",
+        "amount#0"
+      ],
+      "stack_out": [
+        "amount#0",
+        "0",
+        "\"total_balance\""
+      ]
+    },
+    "109": {
+      "op": "app_global_get_ex",
+      "defined_out": [
+        "amount#0",
+        "maybe_exists%0#0",
+        "maybe_value%0#0"
+      ],
+      "stack_out": [
+        "amount#0",
+        "maybe_value%0#0",
+        "maybe_exists%0#0"
+      ]
+    },
+    "110": {
+      "error": "check self.total_balance exists",
+      "op": "assert // check self.total_balance exists",
+      "stack_out": [
+        "amount#0",
+        "maybe_value%0#0"
+      ]
+    },
+    "111": {
+      "op": "dup",
+      "defined_out": [
+        "amount#0",
+        "maybe_value%0#0",
+        "maybe_value%0#0 (copy)"
+      ],
+      "stack_out": [
+        "amount#0",
+        "maybe_value%0#0",
+        "maybe_value%0#0 (copy)"
+      ]
+    },
+    "112": {
+      "op": "dig 2",
+      "defined_out": [
+        "amount#0",
+        "amount#0 (copy)",
+        "maybe_value%0#0",
+        "maybe_value%0#0 (copy)"
+      ],
+      "stack_out": [
+        "amount#0",
+        "maybe_value%0#0",
+        "maybe_value%0#0 (copy)",
+        "amount#0 (copy)"
+      ]
+    },
+    "114": {
+      "op": ">=",
+      "defined_out": [
+        "amount#0",
+        "maybe_value%0#0",
+        "tmp%0#1"
+      ],
+      "stack_out": [
+        "amount#0",
+        "maybe_value%0#0",
+        "tmp%0#1"
+      ]
+    },
+    "115": {
+      "op": "assert",
+      "stack_out": [
+        "amount#0",
+        "maybe_value%0#0"
+      ]
+    },
+    "116": {
+      "op": "swap",
+      "stack_out": [
+        "maybe_value%0#0",
+        "amount#0"
+      ]
+    },
+    "117": {
+      "op": "-",
+      "defined_out": [
+        "tmp%1#1"
+      ],
+      "stack_out": [
+        "tmp%1#1"
+      ]
+    },
+    "118": {
+      "op": "bytec_0 // \"total_balance\"",
+      "stack_out": [
+        "tmp%1#1",
+        "\"total_balance\""
+      ]
+    },
+    "119": {
+      "op": "swap",
+      "stack_out": [
+        "\"total_balance\"",
+        "tmp%1#1"
+      ]
+    },
+    "120": {
+      "op": "app_global_put",
+      "stack_out": []
+    },
+    "121": {
+      "op": "intc_1 // 1",
+      "defined_out": [
+        "1"
+      ],
+      "stack_out": [
+        "1"
+      ]
+    },
+    "122": {
+      "op": "return",
+      "stack_out": []
+    },
+    "123": {
+      "subroutine": "smart_contracts.algocrefi_vault.contract.AlgocrefiVault.get_total_balance[routing]",
+      "params": {},
+      "block": "get_total_balance",
+      "stack_in": [],
+      "op": "intc_0 // 0",
+      "defined_out": [
+        "0"
+      ],
+      "stack_out": [
+        "0"
+      ]
+    },
+    "124": {
+      "op": "bytec_0 // \"total_balance\"",
+      "defined_out": [
+        "\"total_balance\"",
+        "0"
+      ],
+      "stack_out": [
+        "0",
+        "\"total_balance\""
+      ]
+    },
+    "125": {
+      "op": "app_global_get_ex",
+      "defined_out": [
+        "maybe_exists%0#0",
+        "maybe_value%0#0"
+      ],
+      "stack_out": [
+        "maybe_value%0#0",
+        "maybe_exists%0#0"
+      ]
+    },
+    "126": {
+      "error": "check self.total_balance exists",
+      "op": "assert // check self.total_balance exists",
+      "stack_out": [
+        "maybe_value%0#0"
+      ]
+    },
+    "127": {
+      "op": "itob",
+      "defined_out": [
+        "aggregate%val_as_bytes%0#0"
+      ],
+      "stack_out": [
+        "aggregate%val_as_bytes%0#0"
+      ]
+    },
+    "128": {
+      "op": "pushbytes 0x151f7c75",
+      "defined_out": [
+        "0x151f7c75",
+        "aggregate%val_as_bytes%0#0"
+      ],
+      "stack_out": [
+        "aggregate%val_as_bytes%0#0",
+        "0x151f7c75"
+      ]
+    },
+    "134": {
+      "op": "swap",
+      "stack_out": [
+        "0x151f7c75",
+        "aggregate%val_as_bytes%0#0"
+      ]
+    },
+    "135": {
+      "op": "concat",
+      "defined_out": [
+        "tmp%2#0"
+      ],
+      "stack_out": [
+        "tmp%2#0"
+      ]
+    },
+    "136": {
+      "op": "log",
+      "stack_out": []
+    },
+    "137": {
+      "op": "intc_1 // 1",
+      "defined_out": [
+        "1"
+      ],
+      "stack_out": [
+        "1"
+      ]
+    },
+    "138": {
+      "op": "return",
+      "stack_out": []
+    }
+  }
+}

@@ -1,0 +1,171 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700;800&family=Inter:wght@400;500&display=swap");
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: 'Inter', sans-serif;
+  --font-display: 'Space Grotesk', sans-serif;
+
+  --color-bg: #05050A;
+  --color-teal: #00FFD1;
+  --color-violet: #7B2FFF;
+  --color-amber: #FFB347;
+  --color-surface: rgba(255,255,255,0.025);
+  --color-border: rgba(255,255,255,0.07);
+  --color-text-primary: #F0F0F0;
+  --color-text-muted: rgba(255,255,255,0.45);
+  --color-text-faint: rgba(255,255,255,0.25);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: #05050A;
+  color: #F0F0F0;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  cursor: none;
+}
+
+body.loading { overflow: hidden; }
+
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: #05050A; }
+::-webkit-scrollbar-thumb { background: rgba(0,255,209,0.25); border-radius: 2px; }
+
+.font-display {
+  font-family: 'Space Grotesk', sans-serif;
+  font-feature-settings: 'ss01', 'cv01';
+}
+
+/* ── Keyframes ── */
+@keyframes spin-cw {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes spin-ccw {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
+}
+@keyframes pulse-hex {
+  0%,100% { transform: translate(-50%,-50%) scale(1); }
+  50%     { transform: translate(-50%,-50%) scale(1.08); }
+}
+@keyframes badge-in {
+  from { opacity:0; transform:scale(0.9); }
+  to   { opacity:1; transform:scale(1); }
+}
+@keyframes shimmer-sweep {
+  from { background-position: 200% center; }
+  to   { background-position: -200% center; }
+}
+@keyframes marquee-left {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+@keyframes marquee-right {
+  from { transform: translateX(-50%); }
+  to   { transform: translateX(0); }
+}
+@keyframes orb-pulse {
+  0%,100% { transform:scale(1); }
+  50%     { transform:scale(1.04); }
+}
+@keyframes card-shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -100% 0; }
+}
+@keyframes bounce-down {
+  0%,100% { transform:translateY(0); }
+  50%     { transform:translateY(8px); }
+}
+
+/* ── Scroll reveal ── */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s cubic-bezier(0.16,1,0.3,1),
+              transform 0.7s cubic-bezier(0.16,1,0.3,1);
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.reveal-x {
+  opacity: 0;
+  transform: translateX(-30px);
+  transition: opacity 0.7s cubic-bezier(0.16,1,0.3,1),
+              transform 0.7s cubic-bezier(0.16,1,0.3,1);
+}
+.reveal-x.visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+@keyframes terminal-blink {
+  0%,100% { opacity: 1; }
+  50%     { opacity: 0; }
+}
+@keyframes slide-up-fade {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes card-shimmer-smooth {
+  from { background-position: 200% center; }
+  to   { background-position: -200% center; }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-fade-in {
+  from { opacity: 0; transform: scale(0.98); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes glow-pulse-smooth {
+  0%, 100% { box-shadow: 0 0 20px rgba(0,255,209,0.1); }
+  50%      { box-shadow: 0 0 40px rgba(0,255,209,0.2); }
+}
+
+@keyframes tab-slide {
+  from { opacity: 0; transform: translateX(10px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes ripple {
+  from { width: 0; height: 0; opacity: 0.8; }
+  to   { width: 400px; height: 400px; opacity: 0; }
+}
+
+/* ── Bento card shimmer on hover ── */
+.bento-card {
+  position: relative;
+  overflow: hidden;
+}
+.bento-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  background: linear-gradient(105deg, transparent 40%, rgba(0,255,209,0.05) 50%, transparent 60%);
+  background-size: 200% 100%;
+  background-position: 200% 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.bento-card:hover::after {
+  opacity: 1;
+  animation: card-shimmer 0.7s ease forwards;
+}

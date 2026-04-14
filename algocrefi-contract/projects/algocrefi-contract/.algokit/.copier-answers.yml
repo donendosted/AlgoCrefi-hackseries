@@ -1,0 +1,10 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: 1.8.1
+_src_path: gh:algorandfoundation/algokit-python-template
+author_email: rupamgh2006@gmail.com
+author_name: Rupam Ghosh
+contract_name: algocrefi_pool
+deployment_language: python
+preset_name: starter
+project_name: algocrefi-contract
+

@@ -1,0 +1,117 @@
+#pragma version 11
+#pragma typetrack false
+
+// algopy.arc4.ARC4Contract.approval_program() -> uint64:
+main:
+    intcblock 0 1 8
+    bytecblock "total_balance"
+    txn ApplicationID
+    bnz main_after_if_else@2
+    // smart_contracts/algocrefi_vault/contract.py:8
+    // self.total_balance = UInt64(0)
+    bytec_0 // "total_balance"
+    intc_0 // 0
+    app_global_put
+
+main_after_if_else@2:
+    // smart_contracts/algocrefi_vault/contract.py:5
+    // class AlgocrefiVault(ARC4Contract):
+    txn NumAppArgs
+    bz main___algopy_default_create@12
+    txn OnCompletion
+    !
+    assert
+    txn ApplicationID
+    assert
+    pushbytess 0x6e2ebc9b 0x21f1ddff 0x6ca059b9 // method "deposit(uint64)void", method "withdraw(uint64)void", method "get_total_balance()uint64"
+    txna ApplicationArgs 0
+    match deposit withdraw get_total_balance
+    err
+
+main___algopy_default_create@12:
+    txn OnCompletion
+    !
+    txn ApplicationID
+    !
+    &&
+    return
+
+
+// smart_contracts.algocrefi_vault.contract.AlgocrefiVault.deposit[routing]() -> void:
+deposit:
+    // smart_contracts/algocrefi_vault/contract.py:10
+    // @abimethod()
+    txna ApplicationArgs 1
+    dup
+    len
+    intc_2 // 8
+    ==
+    assert // invalid number of bytes for arc4.uint64
+    btoi
+    // smart_contracts/algocrefi_vault/contract.py:12
+    // self.total_balance += amount
+    intc_0 // 0
+    bytec_0 // "total_balance"
+    app_global_get_ex
+    assert // check self.total_balance exists
+    +
+    bytec_0 // "total_balance"
+    swap
+    app_global_put
+    // smart_contracts/algocrefi_vault/contract.py:10
+    // @abimethod()
+    intc_1 // 1
+    return
+
+
+// smart_contracts.algocrefi_vault.contract.AlgocrefiVault.withdraw[routing]() -> void:
+withdraw:
+    // smart_contracts/algocrefi_vault/contract.py:14
+    // @abimethod()
+    txna ApplicationArgs 1
+    dup
+    len
+    intc_2 // 8
+    ==
+    assert // invalid number of bytes for arc4.uint64
+    btoi
+    // smart_contracts/algocrefi_vault/contract.py:16
+    // assert self.total_balance >= amount
+    intc_0 // 0
+    bytec_0 // "total_balance"
+    app_global_get_ex
+    assert // check self.total_balance exists
+    dup
+    dig 2
+    >=
+    assert
+    // smart_contracts/algocrefi_vault/contract.py:17
+    // self.total_balance -= amount
+    swap
+    -
+    bytec_0 // "total_balance"
+    swap
+    app_global_put
+    // smart_contracts/algocrefi_vault/contract.py:14
+    // @abimethod()
+    intc_1 // 1
+    return
+
+
+// smart_contracts.algocrefi_vault.contract.AlgocrefiVault.get_total_balance[routing]() -> void:
+get_total_balance:
+    // smart_contracts/algocrefi_vault/contract.py:21
+    // return self.total_balance
+    intc_0 // 0
+    bytec_0 // "total_balance"
+    app_global_get_ex
+    assert // check self.total_balance exists
+    // smart_contracts/algocrefi_vault/contract.py:19
+    // @abimethod()
+    itob
+    pushbytes 0x151f7c75
+    swap
+    concat
+    log
+    intc_1 // 1
+    return
