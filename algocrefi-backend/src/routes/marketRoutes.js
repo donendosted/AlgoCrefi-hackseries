@@ -12,5 +12,6 @@ router.get("/", (_req, res) => {
 router.get("/ohlc", marketController.getOhlc);
 router.get("/stats", marketController.getStats);
 router.get("/pool-snapshot", marketController.getPoolSnapshot);
+router.get("/pool-snapshot/stream", marketController.streamPoolSnapshot);
 
 module.exports = router;

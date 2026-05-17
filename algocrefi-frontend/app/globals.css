@@ -31,10 +31,11 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
-  cursor: none;
+  overflow-y: auto;
+  cursor: auto;
 }
 
-body.loading { overflow: hidden; }
+body.loading { overflow-y: auto; }
 
 ::-webkit-scrollbar { width: 3px; }
 ::-webkit-scrollbar-track { background: #05050A; }

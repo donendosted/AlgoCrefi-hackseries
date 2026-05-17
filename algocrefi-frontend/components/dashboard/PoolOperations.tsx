@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
-import type { PoolInfo, UserInfo } from "@/lib/mockData";
+import type { DashboardPool, DashboardUser } from "@/src/types/dashboard";
 import { useToast } from "./toastContext";
 import { Buffer } from "buffer";
 import { getWalletAddress } from "@/src/utils/authService";
@@ -9,9 +9,10 @@ import { algoToMicroAlgo, estimateAlgoFromShares, estimateShares, submitDeposit,
 import { getStoredWalletType, signTransactions } from "@/src/utils/walletService";
 
 interface Props {
-  pool: PoolInfo;
-  user: UserInfo;
+  pool: DashboardPool;
+  user: DashboardUser;
   onRefresh: () => Promise<void>;
+  onOptimisticPoolBalance?: (nextPoolBalanceMicro: number) => void;
 }
 
 function RippleButton({
@@ -103,7 +104,7 @@ function RippleButton({
   );
 }
 
-export default function PoolOperations({ pool, user, onRefresh }: Props) {
+export default function PoolOperations({ pool, user, onRefresh, onOptimisticPoolBalance }: Props) {
   const [tab, setTab] = useState<"deposit" | "withdraw">("deposit");
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
@@ -124,6 +125,15 @@ export default function PoolOperations({ pool, user, onRefresh }: Props) {
   const failToast = (error: unknown) => {
     const message = error instanceof Error ? error.message : "Transaction failed";
     addToast({ type: "error", title: "Action failed", message });
+  };
+
+  const emitOptimisticBalance = (nextPoolBalanceMicro: number) => {
+    onOptimisticPoolBalance?.(nextPoolBalanceMicro);
+    window.dispatchEvent(
+      new CustomEvent("algocrefi:pool-balance-optimistic", {
+        detail: { poolBalanceMicro: nextPoolBalanceMicro },
+      })
+    );
   };
 
   const getWalletSession = () => {
@@ -197,6 +207,7 @@ export default function PoolOperations({ pool, user, onRefresh }: Props) {
       const res = await submitDeposit([base64Payment, base64Deposit]) as { appTxId?: string; message?: string };
 
       console.log("[pool] deposit: confirmed", res);
+      emitOptimisticBalance(pool.balance + amountMicroAlgo);
       addToast({
         type: "success",
         title: "Deposit submitted!",
@@ -248,6 +259,8 @@ export default function PoolOperations({ pool, user, onRefresh }: Props) {
       setLoadingLabel("Submitting...");
       const res = await submitWithdraw(shares, base64Withdraw) as { appTxId?: string; message?: string };
 
+      const nextWithdrawBalanceMicro = Math.max(0, pool.balance - Math.round((algoEstimate ?? 0) * 1_000_000));
+      emitOptimisticBalance(nextWithdrawBalanceMicro);
       addToast({
         type: "success",
         title: "Withdrawal submitted!",

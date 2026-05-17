@@ -6,10 +6,18 @@ export default function Cursor() {
   const pos = useRef({ x: -100, y: -100 });
   const curr = useRef({ x: -100, y: -100 });
   const rafId = useRef<number>(0);
+  const visibleRef = useRef(false);
 
   useEffect(() => {
     const el = cursorRef.current;
     if (!el) return;
+    const finePointer = window.matchMedia("(pointer: fine)").matches;
+    if (!finePointer) {
+      el.style.display = "none";
+      return;
+    }
+    visibleRef.current = true;
+    el.style.display = "block";
 
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -68,14 +76,15 @@ export default function Cursor() {
         left: 0,
         width: "10px",
         height: "10px",
-        border: "1.5px solid #00FFD1",
+        border: "1.5px solid rgba(255,255,255,0.85)",
+        background: "rgba(0,255,209,0.18)",
         borderRadius: "50%",
         pointerEvents: "none",
         zIndex: 99999,
-        mixBlendMode: "difference",
         transition: "width 0.15s ease, height 0.15s ease, border-color 0.15s ease",
-        willChange: "transform",
-      }}
+      willChange: "transform",
+      opacity: visibleRef.current ? 1 : 0,
+    }}
     />
   );
 }

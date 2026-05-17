@@ -40,6 +40,8 @@ function saveStoredPoints(points: SnapshotPoint[]) {
 export default function PoolValueChart({ poolBalanceMicro }: { poolBalanceMicro: number }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<unknown>(null);
+  const seriesRef = useRef<{ setData: (rows: unknown[]) => void } | null>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const [lookback, setLookback] = useState<LookbackKey>("24h");
   const [points, setPoints] = useState<SnapshotPoint[]>([]);
 
@@ -68,6 +70,39 @@ export default function PoolValueChart({ poolBalanceMicro }: { poolBalanceMicro:
       return pruned;
     });
   }, [poolBalanceMicro]);
+
+  const appendOptimisticPoint = (nextPoolBalanceMicro: number) => {
+    if (!Number.isFinite(nextPoolBalanceMicro) || nextPoolBalanceMicro < 0) return;
+
+    const now = Math.floor(Date.now() / 1000);
+    const value = nextPoolBalanceMicro / 1_000_000;
+
+    setPoints((prev) => {
+      const next = [...prev];
+      const last = next[next.length - 1];
+
+      if (last && now - last.time < 12) {
+        next[next.length - 1] = { ...last, value };
+      } else {
+        next.push({ time: now, value });
+      }
+
+      const pruned = next.slice(-MAX_POINTS);
+      saveStoredPoints(pruned);
+      return pruned;
+    });
+  };
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ poolBalanceMicro?: number }>).detail;
+      if (!detail || !Number.isFinite(detail.poolBalanceMicro ?? NaN)) return;
+      appendOptimisticPoint(Number(detail.poolBalanceMicro));
+    };
+
+    window.addEventListener("algocrefi:pool-balance-optimistic", handler as EventListener);
+    return () => window.removeEventListener("algocrefi:pool-balance-optimistic", handler as EventListener);
+  }, []);
 
   const visiblePoints = useMemo(() => {
     const selected = LOOKBACK_OPTIONS.find((o) => o.key === lookback) ?? LOOKBACK_OPTIONS[2];
@@ -111,11 +146,12 @@ export default function PoolValueChart({ poolBalanceMicro }: { poolBalanceMicro:
         lineWidth: 2,
       });
 
-      areaSeries.setData(visiblePoints.map((p) => ({ time: p.time, value: p.value })));
+      seriesRef.current = areaSeries;
       (chart as { timeScale: () => { fitContent: () => void } }).timeScale().fitContent();
 
       chartRef.current = chart;
 
+      resizeObserverRef.current?.disconnect();
       const ro = new ResizeObserver(() => {
         if (!containerRef.current || !chartRef.current) return;
         (chartRef.current as { applyOptions: (params: { width: number; height: number }) => void }).applyOptions({
@@ -123,6 +159,7 @@ export default function PoolValueChart({ poolBalanceMicro }: { poolBalanceMicro:
           height: containerRef.current.clientHeight,
         });
       });
+      resizeObserverRef.current = ro;
       ro.observe(containerRef.current);
 
       return () => ro.disconnect();
@@ -132,11 +169,22 @@ export default function PoolValueChart({ poolBalanceMicro }: { poolBalanceMicro:
     return () => {
       mounted = false;
       cleanupPromise.then((cleanup) => cleanup?.());
+      resizeObserverRef.current?.disconnect();
+      resizeObserverRef.current = null;
       if (chartRef.current) {
         (chartRef.current as { remove: () => void }).remove();
         chartRef.current = null;
       }
+      seriesRef.current = null;
     };
+  }, []);
+
+  useEffect(() => {
+    if (!seriesRef.current) return;
+    seriesRef.current.setData(visiblePoints.map((p) => ({ time: p.time, value: p.value })));
+    if (chartRef.current) {
+      (chartRef.current as { timeScale: () => { fitContent: () => void } }).timeScale().fitContent();
+    }
   }, [visiblePoints]);
 
   const latest = points[points.length - 1]?.value ?? 0;

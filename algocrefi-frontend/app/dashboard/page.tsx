@@ -183,7 +183,7 @@ function DashboardInner() {
     };
 
     run();
-    const interval = setInterval(run, 15000);
+    const interval = setInterval(run, 5000);
 
     return () => {
       mounted = false;
@@ -318,7 +318,7 @@ function DashboardInner() {
               </div>
               <div style={{ background: "rgba(255,255,255,0.02)", borderRadius: 10, padding: "10px 12px" }}>
                 <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontFamily: "monospace" }}>REFRESH INTERVAL</div>
-                <div style={{ color: "#F0F0F0", fontSize: 13, marginTop: 4 }}>Dashboard 15s, Market 30s</div>
+                <div style={{ color: "#F0F0F0", fontSize: 13, marginTop: 4 }}>Dashboard 5s, Market 5s</div>
               </div>
             </div>
           </div>

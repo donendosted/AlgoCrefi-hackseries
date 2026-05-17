@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Buffer } from "buffer";
-import type { UserInfo } from "@/lib/mockData";
+import type { DashboardUser } from "@/src/types/dashboard";
 import { useToast } from "./toastContext";
 import { getWalletAddress } from "@/src/utils/authService";
 import { buildCollateralLoanGroup, buildRepayGroup, buildUnsecuredLoanTx } from "@/src/utils/algoTxBuilder";
@@ -19,7 +19,7 @@ import {
 import { getStoredWalletType, signTransactions } from "@/src/utils/walletService";
 
 interface Props {
-  user: UserInfo;
+  user: DashboardUser;
   lending: {
     activeLoan: number;
     dueAmount: number;

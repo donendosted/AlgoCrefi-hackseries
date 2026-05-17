@@ -26,6 +26,9 @@ export type PoolSnapshot = {
   quoteSymbol: string;
   usdcPerAlgo: number;
   round: number;
+  liquidityUsd?: number;
+  volume24hUsd?: number;
+  priceChange24hPct?: number;
 };
 
 const INTERVAL_SECONDS: Record<string, number> = {
