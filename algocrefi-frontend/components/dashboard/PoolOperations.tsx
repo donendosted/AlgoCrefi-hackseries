@@ -151,16 +151,20 @@ export default function PoolOperations({ pool, user, onRefresh }: Props) {
     try {
       const { walletAddress, walletType } = getWalletSession();
 
-      if (user.shares === 0) {
+      if (!user.optedIn) {
         setLoading(true);
         setLoadingLabel("Signing opt-in...");
         try {
+          console.log("[pool] opt-in: building tx");
           const optInTx = await buildOptInTx(walletAddress);
+          console.log("[pool] opt-in: signing tx");
           const [signedOptIn] = await signTransactions([optInTx], walletType);
           const optInBase64 = encodeSignedTx(signedOptIn);
 
           setLoadingLabel("Submitting opt-in...");
+          console.log("[pool] opt-in: submitting tx");
           await submitOptIn(optInBase64);
+          console.log("[pool] opt-in: confirmed");
           addToast({ type: "success", title: "Opt-in confirmed", message: "Wallet opted into pool app" });
         } catch (optInError: unknown) {
           const optInMsg = optInError instanceof Error ? optInError.message : "Opt-in failed";
@@ -180,15 +184,19 @@ export default function PoolOperations({ pool, user, onRefresh }: Props) {
       setLoading(true);
       setLoadingLabel("Building tx...");
 
+      console.log("[pool] deposit: building group");
       const [paymentTx, depositTx] = await buildDepositTxGroup(walletAddress, amountMicroAlgo);
 
       setLoadingLabel("Sign in wallet...");
+      console.log("[pool] deposit: signing group");
       const signed = await signTransactions([paymentTx, depositTx], walletType);
       const [base64Payment, base64Deposit] = signed.map(encodeSignedTx);
 
       setLoadingLabel("Submitting...");
+      console.log("[pool] deposit: submitting group");
       const res = await submitDeposit([base64Payment, base64Deposit]) as { appTxId?: string; message?: string };
 
+      console.log("[pool] deposit: confirmed", res);
       addToast({
         type: "success",
         title: "Deposit submitted!",
@@ -196,12 +204,15 @@ export default function PoolOperations({ pool, user, onRefresh }: Props) {
         txId: res.appTxId,
       });
       setAmount("");
+      console.log("[pool] deposit: refreshing data");
       await onRefresh();
+      console.log("[pool] deposit: refresh complete");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Transaction failed";
       if (message.toLowerCase().includes("already in ledger")) {
         addToast({ type: "success", title: "Deposit likely confirmed", message });
         setAmount("");
+        console.log("[pool] deposit: already in ledger, refreshing data");
         await onRefresh();
       } else {
         failToast(error);

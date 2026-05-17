@@ -6,19 +6,31 @@ export type Pool = {
   sharePrice: number;
 };
 
+export type PoolConfig = {
+  appId: number;
+  appAddress: string;
+};
+
 export type UserPool = {
   id: string;
   walletAddress: string;
   shares: number;
+  optedIn?: boolean;
   algoValue: number;
 };
 
 type PoolInfoResponse = {
   pool: Pool;
+  config?: PoolConfig;
 };
 
 type UserPoolInfoResponse = {
   user: UserPool;
+  config?: PoolConfig;
+};
+
+type PoolConfigResponse = {
+  config: PoolConfig;
 };
 
 export async function getPoolInfo() {
@@ -27,6 +39,11 @@ export async function getPoolInfo() {
 
 export async function getUserPoolInfo() {
   return apiRequest<UserPoolInfoResponse>("/api/pool/user-info");
+}
+
+export async function getPoolConfig() {
+  const response = await apiRequest<PoolConfigResponse>("/api/pool/pool-info", { auth: false });
+  return response.config;
 }
 
 export async function submitOptIn(signedOptInTx: string) {

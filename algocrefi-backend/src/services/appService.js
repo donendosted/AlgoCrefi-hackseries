@@ -141,10 +141,27 @@ async function submitSignedAppCall(signedTxnBase64, expectedSender, expectedOnCo
     }
   }
 
-  const response = await algodClient.sendRawTransaction(signedBytes).do();
-  const txId = response.txid;
-  await algosdk.waitForConfirmation(algodClient, txId, 20);
-  return txId;
+  try {
+    const response = await algodClient.sendRawTransaction(signedBytes).do();
+    const txId = response.txid;
+    await algosdk.waitForConfirmation(algodClient, txId, 20);
+    return txId;
+  } catch (err) {
+    const msg = String(err?.message || "");
+    if (Number(expectedOnComplete) === 1 && msg.includes("already opted in")) {
+      return "already-opted-in";
+    }
+    console.error("submitSignedAppCall rejected", {
+      appId,
+      sender,
+      expectedOnComplete,
+      txType: decoded.txn.type,
+      appIndex: Number(decoded.txn.applicationCall?.appIndex ?? 0),
+      onComplete: Number(decoded.txn.applicationCall?.onComplete ?? -1),
+      appArgsLength: decoded.txn.applicationCall?.appArgs?.length ?? 0,
+    });
+    throw err;
+  }
 }
 
 function decodeSignedTxn(base64) {
@@ -239,6 +256,11 @@ async function checkAccountOptedIn(address, appId) {
   }
 }
 
+async function getAccountOptInStatus(address) {
+  const appId = getAppId();
+  return checkAccountOptedIn(address, appId);
+}
+
 async function getPoolInfo() {
   const appId = getAppId();
   const app = await algodClient.getApplicationByID(Number(appId)).do();
@@ -288,4 +310,5 @@ module.exports = {
   getTotalShares,
   getAccount,
   getBackendAddress,
+  getAccountOptInStatus,
 };

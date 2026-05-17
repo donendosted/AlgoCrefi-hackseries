@@ -1,7 +1,7 @@
 ﻿const Deposit = require("../models/depositModel");
 const User = require("../models/userModel");
 const { verifyTransaction } = require("../services/verifyService");
-const { submitSignedAppCall, submitSignedDepositGroup, getPoolInfo, getUserShares, getTotalShares, getBackendAddress } = require("../services/appService");
+const { submitSignedAppCall, submitSignedDepositGroup, getPoolInfo, getUserShares, getTotalShares, getBackendAddress, getAccountOptInStatus } = require("../services/appService");
 
 function safeStringify(obj) {
   return JSON.parse(JSON.stringify(obj, (key, value) => 
@@ -11,6 +11,11 @@ function safeStringify(obj) {
 
 function getAppId() {
   return Number(process.env.POOL_APP_ID || process.env.LENDING_APP_ID || process.env.APP_ID);
+}
+
+function getAppAddress() {
+  const algosdk = require("algosdk");
+  return algosdk.getApplicationAddress(getAppId()).toString();
 }
 
 exports.deposit = async (req, res) => {
@@ -120,6 +125,14 @@ exports.optIn = async (req, res) => {
       1
     );
 
+    console.log("pool opt-in submitted", {
+      userId: user._id.toString(),
+      walletAddress: user.walletAddress,
+      appId: getAppId(),
+      appAddress: getAppAddress(),
+      appTxId,
+    });
+
     res.json({
       success: true,
       message: "Opt-in submitted successfully",
@@ -187,6 +200,10 @@ exports.getPoolInfo = async (req, res) => {
         totalShares: totalShares,
         sharePrice: sharePrice,
       },
+      config: {
+        appId: getAppId(),
+        appAddress: getAppAddress(),
+      },
     });
 
   } catch (err) {
@@ -205,6 +222,7 @@ exports.getUserInfo = async (req, res) => {
     }
 
     const userShares = await getUserShares(user.walletAddress);
+    const optedIn = await getAccountOptInStatus(user.walletAddress);
     const poolBalance = await getPoolInfo();
     const totalShares = await getTotalShares();
     const algoValue = totalShares > 0
@@ -217,7 +235,12 @@ exports.getUserInfo = async (req, res) => {
         id: user._id.toString(),
         walletAddress: user.walletAddress,
         shares: userShares,
+        optedIn,
         algoValue,
+      },
+      config: {
+        appId: getAppId(),
+        appAddress: getAppAddress(),
       },
     });
 
