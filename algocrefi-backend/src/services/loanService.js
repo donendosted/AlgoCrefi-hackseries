@@ -210,8 +210,12 @@ async function readGlobalStateUint(appId, key) {
   return Number(hit?.value?.uint || 0);
 }
 
-const priceCache = { price: 0.1, ts: 0 };
+const priceCache = { price: 0, ts: 0 };
 const PRICE_CACHE_TTL_MS = 5 * 60 * 1000;
+
+function getTinymanPoolAddress() {
+  return String(process.env.TINYMAN_POOL_ADDRESS || process.env.TINYMAN_POOL_ID || "").trim();
+}
 
 async function fetchAlgoUsdPrice() {
   const now = Date.now();
@@ -219,8 +223,9 @@ async function fetchAlgoUsdPrice() {
     return priceCache.price;
   }
 
-  const poolAddress = "JOEPFUDG7NS4EEUM7WZW7GA6VLD3STS5DDCJWKSGB2QLHIWDF2CJMXEFTM";
-  const usdcAssetId = 10458941;
+  const poolAddress = getTinymanPoolAddress();
+  const usdcAssetId = getUsdcAssetId();
+  ensure(poolAddress, "Tinyman pool address is required (set TINYMAN_POOL_ADDRESS or TINYMAN_POOL_ID)");
 
   try {
     const account = await algodClient.accountInformation(poolAddress).do();
@@ -261,10 +266,7 @@ async function getCollateralQuote(algoAmountMicro, daysToRepay) {
   const algoAmountInAlgo = algoAmount / MICRO_ALGO;
 
   const realMinCollateralUsdc = algoAmountInAlgo * algoUsdPrice * 1.5;
-  const testnetUsdcPerAlgo = Number(process.env.TESTNET_USDC_PER_ALGO || 9);
-  const testnetMinCollateralUsdc = algoAmountInAlgo * testnetUsdcPerAlgo;
-
-  const requiredUsdc = Math.max(realMinCollateralUsdc, testnetMinCollateralUsdc);
+  const requiredUsdc = realMinCollateralUsdc;
   const requiredUsdcUnits = Math.ceil(requiredUsdc * 10 ** USDC_DECIMALS);
 
   const { interest, due } = calculateDue(algoAmount, days);
@@ -275,7 +277,6 @@ async function getCollateralQuote(algoAmountMicro, daysToRepay) {
     daysToRepay: days,
     algoUsdPrice,
     realMinCollateralUsdc,
-    testnetMinCollateralUsdc,
     requiredCollateralUsdc: requiredUsdc,
     requiredCollateralUsdcUnits: requiredUsdcUnits,
     estimatedInterestMicroAlgo: interest,
@@ -541,8 +542,9 @@ async function getLendingUserState(walletAddress) {
     activeLoan,
     dueAmount,
     dueTs,
-    netAura,
-    unsecuredCreditLimit,
+    auraEarned,
+    auraPenalty,
+    unsecuredCreditLimitRaw,
     blacklisted,
     availableAlgo,
   ] =
@@ -550,31 +552,24 @@ async function getLendingUserState(walletAddress) {
       readLocalStateUint(walletAddress, appId, "loan_active"),
       readLocalStateUint(walletAddress, appId, "due_amount"),
       readLocalStateUint(walletAddress, appId, "due_ts"),
-      Promise.all([
-        readLocalStateUint(walletAddress, appId, "aura_earned"),
-        readLocalStateUint(walletAddress, appId, "aura_penalty"),
-      ]).then(([earned, penalty]) => Math.max(0, earned - penalty)),
-      Promise.all([
-        readLocalStateUint(walletAddress, appId, "aura_earned"),
-        readLocalStateUint(walletAddress, appId, "aura_penalty"),
-      ]).then(([earned, penalty]) => {
-        const net = Math.max(0, earned - penalty);
-        return Math.floor(net * 0.1 * MICRO_ALGO);
-      }),
+      readLocalStateUint(walletAddress, appId, "aura_earned"),
+      readLocalStateUint(walletAddress, appId, "aura_penalty"),
       readLocalStateUint(walletAddress, appId, "aura_blacklisted"),
       getPoolAlgo(),
     ]);
 
+  const netAura = Math.max(0, Number(auraEarned || 0) - Number(auraPenalty || 0));
+  const unsecuredCreditLimitCalculated = Math.floor(netAura * 0.1 * MICRO_ALGO);
   const netAuraPoints = Number(netAura || 0);
-  const unsecuredCreditLimitMicroAlgo = Number(unsecuredCreditLimit || 0);
+  const unsecuredCreditLimitMicroAlgo = Number(unsecuredCreditLimitRaw || unsecuredCreditLimitCalculated || 0);
   const unsecuredCreditLimitAlgo = unsecuredCreditLimitMicroAlgo / MICRO_ALGO;
 
   return {
     activeLoan: Number(activeLoan || 0),
     dueAmount: Number(dueAmount || 0),
     dueTs: Number(dueTs || 0),
-    auraEarned: 0,
-    auraPenalty: 0,
+    auraEarned: Number(auraEarned || 0),
+    auraPenalty: Number(auraPenalty || 0),
     netAura: netAuraPoints,
     netAuraPoints,
     unsecuredCreditLimit: unsecuredCreditLimitMicroAlgo,

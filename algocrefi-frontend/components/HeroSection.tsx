@@ -19,7 +19,6 @@ function useCounter(target: number, duration = 2000, active = false) {
   return val;
 }
 
-// Simulated terminal lines cycling
 const TX_POOL = [
   "> deposit(1000) → shares: 997.3",
   "> borrow(500) · collateral: USDC",
@@ -28,7 +27,7 @@ const TX_POOL = [
   "> repay(500) · interest: 1.55",
   "> withdraw(200) · shares: 199.4",
   "> aura.unlock() → 30 pts req",
-  "> rate.current() → 0.31 USDC",
+  "> rate.current() → --",
 ];
 
 function TerminalBlock({ ready }: { ready: boolean }) {
@@ -37,14 +36,8 @@ function TerminalBlock({ ready }: { ready: boolean }) {
 
   useEffect(() => {
     setLines(TX_POOL.slice(0, 4));
-    const interval = setInterval(() => {
-      setLines((prev) => [
-        TX_POOL[Math.floor(Math.random() * TX_POOL.length)],
-        ...prev.slice(0, 3),
-      ]);
-    }, 1800);
     const blinkI = setInterval(() => setBlink((b) => !b), 530);
-    return () => { clearInterval(interval); clearInterval(blinkI); };
+    return () => { clearInterval(blinkI); };
   }, []);
 
   return (
@@ -91,7 +84,7 @@ export default function HeroSection({ onEnterApp }: { onEnterApp: () => void }) 
   const [ready, setReady] = useState(false);
   const [statsActive, setStatsActive] = useState(false);
   const [showScroll, setShowScroll] = useState(true);
-  const [block, setBlock] = useState(12847392);
+  const [block] = useState<number | null>(null);
   const statsRef = useRef<HTMLDivElement>(null);
   const btn1Ref = useRef<HTMLButtonElement>(null);
   const btn2Ref = useRef<HTMLButtonElement>(null);
@@ -101,12 +94,6 @@ export default function HeroSection({ onEnterApp }: { onEnterApp: () => void }) 
   useEffect(() => {
     const t = setTimeout(() => setReady(true), 150);
     return () => clearTimeout(t);
-  }, []);
-
-  // Simulate live block counter
-  useEffect(() => {
-    const i = setInterval(() => setBlock((b) => b + 1), 3200);
-    return () => clearInterval(i);
   }, []);
 
   useEffect(() => {
@@ -193,7 +180,7 @@ export default function HeroSection({ onEnterApp }: { onEnterApp: () => void }) 
           </span>
           <div style={{ height: 1, width: 40, background: "rgba(0,255,209,0.3)" }} />
           <span style={{ fontFamily: "monospace", fontSize: 10, color: "rgba(255,255,255,0.2)", letterSpacing: "0.06em" }}>
-            block #{block.toLocaleString()}
+            block #{block == null ? "SYNCING" : block.toLocaleString()}
           </span>
         </div>
 
@@ -330,7 +317,7 @@ export default function HeroSection({ onEnterApp }: { onEnterApp: () => void }) 
         <div ref={statsRef} style={{ display: "flex", flexDirection: "column", gap: 0 }}>
           {[
             { label: "TOTAL_POOL_LIQUIDITY", val: pool.toLocaleString() + " ALGO", accent: "#00FFD1", delay: 0.6 },
-            { label: "ALGO_PRICE", val: "0.31 USDC", accent: "#F0F0F0", delay: 0.72 },
+            { label: "ALGO_PRICE", val: "--", accent: "#F0F0F0", delay: 0.72 },
             { label: "MIN_AURA_SCORE", val: "30 pts", accent: "#FFB347", delay: 0.84 },
             { label: "ACTIVE_LOANS", val: "2", accent: "#7B2FFF", delay: 0.96 },
           ].map((s, i) => (

@@ -139,33 +139,16 @@ function Sparkline({ active }: { active: boolean }) {
   );
 }
 
-// Simulated transaction hash stream for Card A
+// Informational realtime source block for Card A
 function TxStream() {
-  const [lines, setLines] = useState<string[]>([]);
-
-  useEffect(() => {
-    const chars = "0123456789abcdef";
-    const rand = (n: number) => Array.from({ length: n }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-    const actions = ["DEPOSIT", "WITHDRAW", "BORROW", "REPAY", "MINT_SHARE"];
-    const amounts = ["50", "120", "1000", "250", "88", "300"];
-
-    const initial = Array.from({ length: 6 }, () =>
-      `${rand(6)}  ${actions[Math.floor(Math.random() * actions.length)]}  ${amounts[Math.floor(Math.random() * amounts.length)]} ALGO`
-    );
-    setLines(initial);
-
-    const interval = setInterval(() => {
-      setLines((prev) => [
-        `${rand(6)}  ${actions[Math.floor(Math.random() * actions.length)]}  ${amounts[Math.floor(Math.random() * amounts.length)]} ALGO`,
-        ...prev.slice(0, 5),
-      ]);
-    }, 1400);
-    return () => clearInterval(interval);
-  }, []);
+  const lines = [
+    "Pool snapshots stream every 2s from backend.",
+    "Open dashboard charts for per-snapshot activity.",
+  ];
 
   return (
     <div
-      aria-label="Live transaction stream"
+      aria-label="Realtime source information"
       style={{
         marginTop: "auto",
         padding: "12px 14px",
@@ -177,16 +160,15 @@ function TxStream() {
       }}
     >
       <div style={{ fontSize: 9, color: "rgba(0,255,209,0.4)", letterSpacing: "0.1em", marginBottom: 8 }}>
-        LIVE · POOL_TXNS
+        REALTIME SOURCE
       </div>
       {lines.map((line, i) => (
         <div
           key={i}
           style={{
             fontSize: 11,
-            color: i === 0 ? "rgba(0,255,209,0.8)" : `rgba(255,255,255,${0.15 - i * 0.015})`,
+            color: i === 0 ? "rgba(0,255,209,0.8)" : "rgba(255,255,255,0.45)",
             padding: "2px 0",
-            transition: "color 0.4s ease",
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
@@ -198,7 +180,6 @@ function TxStream() {
     </div>
   );
 }
-
 export default function BentoGrid() {
   const { ref: sectionRef, visible } = useReveal(0.1);
 
@@ -211,9 +192,7 @@ export default function BentoGrid() {
       try {
         const res = await getPoolInfo();
         if (mounted && res.pool) setPoolStats(res.pool);
-      } catch {
-        // Keep static fallback values when request fails.
-      }
+      } catch {}
     };
 
     fetchPool();
@@ -225,13 +204,13 @@ export default function BentoGrid() {
 
   const poolBalanceLabel = poolStats
     ? `${(poolStats.balance / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 4 })} ALGO`
-    : "54,030 ALGO";
+    : "--";
   const sharePriceLabel = poolStats
     ? `${(poolStats.sharePrice / 1_000_000).toFixed(4)} ALGO`
-    : "1.0031 ALGO";
+    : "--";
   const totalSharesLabel = poolStats
     ? poolStats.totalShares.toLocaleString("en-US")
-    : "53,863";
+    : "--";
 
   const cardReveal = (delay: number): React.CSSProperties => ({
     opacity: visible ? 1 : 0,
@@ -381,3 +360,4 @@ export default function BentoGrid() {
     </section>
   );
 }
+

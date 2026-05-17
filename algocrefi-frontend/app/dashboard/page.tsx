@@ -146,10 +146,10 @@ function DashboardInner() {
     () => [
       { key: "TVL", val: `${(pool.balance / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 2 })} ALGO`, color: "#00FFD1" },
       { key: "SHARES", val: user.shares.toLocaleString(), color: "rgba(255,255,255,0.7)" },
-      { key: "AURA", val: `${lending.netAuraPoints} pts`, color: "rgba(255,183,71,0.85)" },
-      { key: "LOAN", val: lending.activeLoan > 0 ? `${(lending.activeLoan / 1_000_000).toFixed(4)} ALGO` : "None", color: "rgba(255,255,255,0.7)" },
+      { key: "AURA", val: `${Number(lending.netAuraPoints).toFixed(2)} pts`, color: "rgba(255,183,71,0.85)" },
+      { key: "LOAN", val: lending.activeLoan > 0 ? `${(lending.dueAmount / 1_000_000).toFixed(4)} ALGO` : "None", color: "rgba(255,255,255,0.7)" },
     ],
-    [pool.balance, user.shares, lending.netAuraPoints, lending.activeLoan]
+    [pool.balance, user.shares, lending.netAuraPoints, lending.activeLoan, lending.dueAmount]
   );
 
   const navTitle =
@@ -272,7 +272,7 @@ function DashboardInner() {
           <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: 24 }}>
             <div style={{ fontFamily: "monospace", fontSize: 8, color: "rgba(255,183,71,0.45)", letterSpacing: "0.12em" }}>// AURA_CORE</div>
             <h3 className="font-display" style={{ color: "#F0F0F0", margin: "6px 0 16px", fontSize: 18 }}>Aura Reputation</h3>
-            <div className="font-display" style={{ fontSize: 56, color: "#FFB347", lineHeight: 1, letterSpacing: "-0.04em" }}>{lending.netAuraPoints}</div>
+            <div className="font-display" style={{ fontSize: 56, color: "#FFB347", lineHeight: 1, letterSpacing: "-0.04em" }}>{Number(lending.netAuraPoints).toFixed(2)}</div>
             <div style={{ marginTop: 8, color: "rgba(255,255,255,0.45)", fontSize: 13 }}>Net score used for unsecured eligibility and risk weighting.</div>
             <div style={{ marginTop: 16, display: "grid", gap: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", background: "rgba(255,255,255,0.02)", borderRadius: 10, padding: "10px 12px" }}>
@@ -282,7 +282,7 @@ function DashboardInner() {
               <div style={{ display: "flex", justifyContent: "space-between", background: "rgba(255,255,255,0.02)", borderRadius: 10, padding: "10px 12px" }}>
                 <span style={{ color: "rgba(255,255,255,0.35)", fontFamily: "monospace", fontSize: 10 }}>UNSECURED ACCESS</span>
                 <span style={{ color: lending.unsecuredEligible ? "#00FFD1" : "#FFB347", fontFamily: "monospace", fontSize: 12 }}>
-                  {lending.unsecuredEligible ? "Enabled" : `Need ${Math.max(30 - lending.netAuraPoints, 0)} more pts`}
+                  {lending.unsecuredEligible ? "Enabled" : `Need ${Math.max(30 - lending.netAuraPoints, 0).toFixed(2)} more pts`}
                 </span>
               </div>
             </div>

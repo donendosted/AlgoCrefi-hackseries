@@ -34,6 +34,7 @@ interface Props {
   user: DashboardUser;
   lending: {
     activeLoan: number;
+    dueAmount: number;
     dueTs: number;
     netAuraPoints: number;
     unsecuredEligible: boolean;
@@ -134,7 +135,7 @@ export default function StatCards({ pool, user, lending, loading = false, errors
     totalShares: pool.totalShares,
     sharePrice: pool.sharePrice,
   });
-  const activeLoanAlgo = (lending.activeLoan / 1_000_000).toFixed(4);
+  const activeLoanAlgo = (lending.dueAmount / 1_000_000).toFixed(4);
   const dueDate = lending.dueTs > 0 ? formatDueDate(lending.dueTs) : null;
 
   const [barW, setBarW] = useState(0);
@@ -254,7 +255,7 @@ export default function StatCards({ pool, user, lending, loading = false, errors
           <AuraArc pts={lending.netAuraPoints} />
         </div>
         <div className="font-display" style={{ fontSize: 28, fontWeight: 700, color: "#FFB347", marginTop: 6, letterSpacing: "-0.03em", lineHeight: 1 }}>
-          {loading ? <span style={{ display: "inline-block", width: 80, height: 30, background: "rgba(255,255,255,0.08)", borderRadius: 6, animation: "shimmer 1.2s linear infinite" }} /> : Math.floor(auraCount)}
+          {loading ? <span style={{ display: "inline-block", width: 80, height: 30, background: "rgba(255,255,255,0.08)", borderRadius: 6, animation: "shimmer 1.2s linear infinite" }} /> : auraCount.toFixed(2)}
           <span style={{ fontSize: 13, fontWeight: 400, color: "rgba(255,183,71,0.5)", marginLeft: 4 }}>pts</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6 }}>
@@ -265,7 +266,7 @@ export default function StatCards({ pool, user, lending, loading = false, errors
             </>
           ) : (
             <span style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: "rgba(255,255,255,0.3)" }}>
-              Need 30 pts
+              Need {Math.max(30 - lending.netAuraPoints, 0).toFixed(2)} pts
             </span>
           )}
         </div>
