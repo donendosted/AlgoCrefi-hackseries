@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useWallet, WalletId } from "@txnlab/use-wallet-react";
 import { login, signup } from "@/src/utils/authService";
 import { hasWalletConnectConfig } from "@/src/utils/xchainConfig";
-import { truncateAddress } from "@/src/utils/walletService";
+import { disconnectWallet, truncateAddress } from "@/src/utils/walletService";
 
 interface WalletConnectModalProps {
   isOpen: boolean;
@@ -95,6 +95,19 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
     } finally {
       setIsLoading(false);
       setLoadingAction(null);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    setError("");
+    setWalletLoading("disconnect");
+
+    try {
+      await disconnectWallet();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to disconnect wallet");
+    } finally {
+      setWalletLoading(null);
     }
   };
 
@@ -329,6 +342,39 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
             <p style={{ fontFamily: "Inter,sans-serif", fontSize: 13, color: "rgba(255,255,255,0.35)", textAlign: "center", marginBottom: 24 }}>
               {isReady ? "New here? We'll create your account." : "Waiting for wallet session..."}
             </p>
+
+            <button
+              type="button"
+              onClick={handleDisconnect}
+              disabled={walletLoading === "disconnect" || isLoading}
+              style={{
+                width: "100%",
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.09)",
+                borderRadius: 12,
+                padding: "12px 14px",
+                color: "rgba(255,255,255,0.72)",
+                fontFamily: "Inter,sans-serif",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: walletLoading === "disconnect" || isLoading ? "not-allowed" : "pointer",
+                marginBottom: 18,
+                transition: "all 0.2s ease",
+                opacity: walletLoading === "disconnect" || isLoading ? 0.6 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (walletLoading !== "disconnect" && !isLoading) {
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)";
+                  e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)";
+                e.currentTarget.style.background = "rgba(255,255,255,0.03)";
+              }}
+            >
+              {walletLoading === "disconnect" ? "Disconnecting..." : "Disconnect wallet"}
+            </button>
 
             {/* Password input */}
             <div style={{ marginBottom: 20 }}>
