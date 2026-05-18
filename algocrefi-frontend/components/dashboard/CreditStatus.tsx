@@ -16,7 +16,7 @@ import {
   submitUnsecuredLoan,
   usdcToDisplay,
 } from "@/src/utils/loanService";
-import { getStoredWalletType, signTransactions } from "@/src/utils/walletService";
+import { signTransactions } from "@/src/utils/walletService";
 
 interface Props {
   user: DashboardUser;
@@ -100,11 +100,10 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
 
   const getWalletSession = () => {
     const walletAddress = getWalletAddress();
-    const walletType = getStoredWalletType();
-    if (!walletAddress || !walletType) {
+    if (!walletAddress) {
       throw new Error("Connect wallet first");
     }
-    return { walletAddress, walletType };
+    return { walletAddress };
   };
 
   const encodeSignedTx = (signedTx: Uint8Array) => Buffer.from(signedTx).toString("base64");
@@ -117,13 +116,13 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
       if (!amount || amount <= 0) throw new Error("Enter a valid ALGO amount");
       if (!quote?.requiredCollateralUsdcUnits) throw new Error("Quote not ready");
 
-      const { walletAddress, walletType } = getWalletSession();
+      const { walletAddress } = getWalletSession();
       setActionLoading(true);
       setActionLabel("Building tx...");
       const [usdcTx, appCallTx] = await buildCollateralLoanGroup(walletAddress, algoAmountMicro, days, quote.requiredCollateralUsdcUnits);
 
       setActionLabel("Sign in wallet...");
-      const signed = await signTransactions([usdcTx, appCallTx], walletType);
+      const signed = await signTransactions([usdcTx, appCallTx]);
 
       setActionLabel("Submitting...");
       const res = await submitCollateralLoan(algoAmountMicro, days, signed.map(encodeSignedTx)) as { appTxId?: string };
@@ -152,13 +151,13 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
       if (!amount || amount <= 0) throw new Error("Enter a valid ALGO amount");
       if (algoAmountMicro > lending.unsecuredCreditLimitMicroAlgo) throw new Error("Amount exceeds unsecured credit limit");
 
-      const { walletAddress, walletType } = getWalletSession();
+      const { walletAddress } = getWalletSession();
       setActionLoading(true);
       setActionLabel("Building tx...");
       const tx = await buildUnsecuredLoanTx(walletAddress, algoAmountMicro, 30);
 
       setActionLabel("Sign in wallet...");
-      const signed = await signTransactions([tx], walletType);
+      const signed = await signTransactions([tx]);
 
       setActionLabel("Submitting...");
       const res = await submitUnsecuredLoan(algoAmountMicro, 30, encodeSignedTx(signed[0])) as { appTxId?: string };
@@ -183,14 +182,14 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
   const handleRepay = async () => {
     try {
       if (!lending.dueAmount || lending.dueAmount <= 0) throw new Error("No due amount found");
-      const { walletAddress, walletType } = getWalletSession();
+      const { walletAddress } = getWalletSession();
 
       setActionLoading(true);
       setActionLabel("Building tx...");
       const [paymentTx, repayTx] = await buildRepayGroup(walletAddress, lending.dueAmount);
 
       setActionLabel("Sign in wallet...");
-      const signed = await signTransactions([paymentTx, repayTx], walletType);
+      const signed = await signTransactions([paymentTx, repayTx]);
 
       setActionLabel("Submitting...");
       const res = await submitRepay(signed.map(encodeSignedTx)) as { appTxId?: string };
@@ -490,4 +489,3 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
     </div>
   );
 }
-

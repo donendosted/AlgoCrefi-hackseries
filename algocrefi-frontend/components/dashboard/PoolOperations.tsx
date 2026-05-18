@@ -6,7 +6,7 @@ import { Buffer } from "buffer";
 import { getWalletAddress } from "@/src/utils/authService";
 import { buildDepositTxGroup, buildOptInTx, buildWithdrawTx } from "@/src/utils/algoTxBuilder";
 import { algoToMicroAlgo, estimateAlgoFromShares, estimateShares, submitDeposit, submitOptIn, submitWithdraw } from "@/src/utils/poolService";
-import { getStoredWalletType, signTransactions } from "@/src/utils/walletService";
+import { signTransactions } from "@/src/utils/walletService";
 
 interface Props {
   pool: DashboardPool;
@@ -138,11 +138,10 @@ export default function PoolOperations({ pool, user, onRefresh, onOptimisticPool
 
   const getWalletSession = () => {
     const walletAddress = getWalletAddress();
-    const walletType = getStoredWalletType();
-    if (!walletAddress || !walletType) {
+    if (!walletAddress) {
       throw new Error("Connect your wallet first");
     }
-    return { walletAddress, walletType };
+    return { walletAddress };
   };
 
   const handleDeposit = async () => {
@@ -159,7 +158,7 @@ export default function PoolOperations({ pool, user, onRefresh, onOptimisticPool
     }
 
     try {
-      const { walletAddress, walletType } = getWalletSession();
+      const { walletAddress } = getWalletSession();
 
       if (!user.optedIn) {
         setLoading(true);
@@ -168,7 +167,7 @@ export default function PoolOperations({ pool, user, onRefresh, onOptimisticPool
           console.log("[pool] opt-in: building tx");
           const optInTx = await buildOptInTx(walletAddress);
           console.log("[pool] opt-in: signing tx");
-          const [signedOptIn] = await signTransactions([optInTx], walletType);
+          const [signedOptIn] = await signTransactions([optInTx]);
           const optInBase64 = encodeSignedTx(signedOptIn);
 
           setLoadingLabel("Submitting opt-in...");
@@ -199,7 +198,7 @@ export default function PoolOperations({ pool, user, onRefresh, onOptimisticPool
 
       setLoadingLabel("Sign in wallet...");
       console.log("[pool] deposit: signing group");
-      const signed = await signTransactions([paymentTx, depositTx], walletType);
+      const signed = await signTransactions([paymentTx, depositTx]);
       const [base64Payment, base64Deposit] = signed.map(encodeSignedTx);
 
       setLoadingLabel("Submitting...");
@@ -246,14 +245,14 @@ export default function PoolOperations({ pool, user, onRefresh, onOptimisticPool
     }
 
     try {
-      const { walletAddress, walletType } = getWalletSession();
+      const { walletAddress } = getWalletSession();
       setLoading(true);
       setLoadingLabel("Building tx...");
 
       const withdrawTx = await buildWithdrawTx(walletAddress, shares);
 
       setLoadingLabel("Sign in wallet...");
-      const signed = await signTransactions([withdrawTx], walletType);
+      const signed = await signTransactions([withdrawTx]);
       const base64Withdraw = encodeSignedTx(signed[0]);
 
       setLoadingLabel("Submitting...");
