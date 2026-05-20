@@ -541,6 +541,7 @@ async function getLendingUserState(walletAddress) {
   const [
     activeLoan,
     dueAmount,
+    collateralUsdc,
     dueTs,
     auraEarned,
     auraPenalty,
@@ -551,9 +552,11 @@ async function getLendingUserState(walletAddress) {
     await Promise.all([
       readLocalStateUint(walletAddress, appId, "loan_active"),
       readLocalStateUint(walletAddress, appId, "due_amount"),
+      readLocalStateUint(walletAddress, appId, "collateral_usdc"),
       readLocalStateUint(walletAddress, appId, "due_ts"),
       readLocalStateUint(walletAddress, appId, "aura_earned"),
       readLocalStateUint(walletAddress, appId, "aura_penalty"),
+      executeReadonlyOrZero(appId, METHODS.getLendingUnsecuredLimit, [walletAddress]),
       readLocalStateUint(walletAddress, appId, "aura_blacklisted"),
       getPoolAlgo(),
     ]);
@@ -567,6 +570,7 @@ async function getLendingUserState(walletAddress) {
   return {
     activeLoan: Number(activeLoan || 0),
     dueAmount: Number(dueAmount || 0),
+    collateralUsdc: Number(collateralUsdc || 0),
     dueTs: Number(dueTs || 0),
     auraEarned: Number(auraEarned || 0),
     auraPenalty: Number(auraPenalty || 0),
