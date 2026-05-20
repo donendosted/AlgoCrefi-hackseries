@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
+import path from "path";
+
+const projectRoot = path.resolve(__dirname);
 
 const nextConfig: NextConfig = {
+  outputFileTracingRoot: projectRoot,
+  turbopack: {
+    root: projectRoot,
+  },
   transpilePackages: [
     "@d13co/algo-x-evm-ui",
     "@d13co/use-wallet-ui-react",

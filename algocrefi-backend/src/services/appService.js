@@ -308,6 +308,7 @@ module.exports = {
   getPoolInfo,
   getUserShares,
   getTotalShares,
+  getAppId,
   getAccount,
   getBackendAddress,
   getAccountOptInStatus,

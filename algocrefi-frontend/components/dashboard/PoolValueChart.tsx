@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { getPoolConfig, getPoolHistory } from "@/src/utils/poolService";
 
 type SnapshotPoint = {
   time: number;
@@ -8,7 +9,7 @@ type SnapshotPoint = {
 };
 
 const STORAGE_KEY = "algocrefi_pool_balance_history_v1";
-const MAX_POINTS = 800;
+const MAX_POINTS = 25000;
 const LOOKBACK_OPTIONS = [
   { key: "1h", seconds: 3600 },
   { key: "6h", seconds: 6 * 3600 },
@@ -37,6 +38,17 @@ function saveStoredPoints(points: SnapshotPoint[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(points.slice(-MAX_POINTS)));
 }
 
+function mergePoints(points: SnapshotPoint[]) {
+  const byTime = new Map<number, SnapshotPoint>();
+  for (const point of points) {
+    if (!Number.isFinite(point.time) || !Number.isFinite(point.value) || point.value < 0) continue;
+    byTime.set(point.time, point);
+  }
+  return Array.from(byTime.values())
+    .sort((a, b) => a.time - b.time)
+    .slice(-MAX_POINTS);
+}
+
 export default function PoolValueChart({ poolBalanceMicro }: { poolBalanceMicro: number }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<unknown>(null);
@@ -46,7 +58,34 @@ export default function PoolValueChart({ poolBalanceMicro }: { poolBalanceMicro:
   const [points, setPoints] = useState<SnapshotPoint[]>([]);
 
   useEffect(() => {
-    setPoints(loadStoredPoints());
+    let cancelled = false;
+    const bootstrap = async () => {
+      const local = loadStoredPoints();
+      try {
+        const config = await getPoolConfig();
+        const now = Math.floor(Date.now() / 1000);
+        const history = await getPoolHistory({
+          appId: config?.appId,
+          fromTs: now - 7 * 24 * 3600,
+          toTs: now,
+          limit: 25000,
+        });
+        if (cancelled) return;
+        const merged = mergePoints([
+          ...history.map((h) => ({ time: Number(h.time), value: Number(h.value) })),
+          ...local,
+        ]);
+        setPoints(merged);
+        saveStoredPoints(merged);
+      } catch {
+        if (cancelled) return;
+        setPoints(local);
+      }
+    };
+    bootstrap();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -65,7 +104,7 @@ export default function PoolValueChart({ poolBalanceMicro }: { poolBalanceMicro:
         next.push({ time: now, value });
       }
 
-      const pruned = next.slice(-MAX_POINTS);
+      const pruned = mergePoints(next);
       saveStoredPoints(pruned);
       return pruned;
     });
@@ -87,7 +126,7 @@ export default function PoolValueChart({ poolBalanceMicro }: { poolBalanceMicro:
         next.push({ time: now, value });
       }
 
-      const pruned = next.slice(-MAX_POINTS);
+      const pruned = mergePoints(next);
       saveStoredPoints(pruned);
       return pruned;
     });
@@ -107,7 +146,16 @@ export default function PoolValueChart({ poolBalanceMicro }: { poolBalanceMicro:
   const visiblePoints = useMemo(() => {
     const selected = LOOKBACK_OPTIONS.find((o) => o.key === lookback) ?? LOOKBACK_OPTIONS[2];
     const minTs = Math.floor(Date.now() / 1000) - selected.seconds;
-    return points.filter((p) => p.time >= minTs);
+
+    if (!points.length) return [];
+    const firstInWindow = points.findIndex((p) => p.time >= minTs);
+    if (firstInWindow === -1) {
+      return points.length ? [points[points.length - 1]] : [];
+    }
+
+    if (firstInWindow === 0) return points;
+
+    return [points[firstInWindow - 1], ...points.slice(firstInWindow)];
   }, [lookback, points]);
 
   useEffect(() => {

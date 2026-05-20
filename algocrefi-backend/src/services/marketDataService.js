@@ -1,6 +1,7 @@
 const COINGECKO_BASE = "https://api.coingecko.com/api/v3";
 const algosdk = require("algosdk");
 const { poolUtils } = require("@tinymanorg/tinyman-js-sdk");
+const PoolSnapshot = require("../models/poolSnapshotModel");
 
 const indexerClient = new algosdk.Indexer(
   process.env.INDEXER_TOKEN || "",
@@ -264,6 +265,14 @@ async function getOhlc({ interval, fromTs, toTs }) {
 
 const marketStatsCache = { data: null, ts: 0 };
 const MARKET_STATS_CACHE_TTL_MS = 5 * 60 * 1000;
+const POOL_HISTORY_MIN_INTERVAL_SECONDS = Math.max(
+  5,
+  Number(process.env.POOL_HISTORY_MIN_INTERVAL_SECONDS || 30)
+);
+const POOL_HISTORY_MAX_POINTS = Math.max(
+  500,
+  Number(process.env.POOL_HISTORY_MAX_POINTS || 25000)
+);
 
 async function getMarketStats() {
   const now = Date.now();
@@ -295,6 +304,11 @@ async function getMarketStats() {
 function toFiniteNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function toEpochSeconds(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.floor(n) : null;
 }
 
 async function fetchTinymanPairMetrics({ poolAddress }) {
@@ -434,6 +448,77 @@ async function getTinymanPoolSnapshot() {
   };
 }
 
+async function persistPoolSnapshotHistory(snapshot, options = {}) {
+  if (!snapshot || !Number.isFinite(Number(snapshot.usdcPerAlgo)) || Number(snapshot.usdcPerAlgo) <= 0) {
+    return { saved: false, reason: "invalid snapshot" };
+  }
+
+  const pair = String(options.pair || "ALGO_USDC").trim().toUpperCase();
+  const observedAtMs =
+    Number.isFinite(Number(options.observedAtMs)) && Number(options.observedAtMs) > 0
+      ? Number(options.observedAtMs)
+      : Date.now();
+  const observedAt = new Date(observedAtMs);
+  const force = options.force === true;
+
+  if (!force) {
+    const last = await PoolSnapshot.findOne({ pair }).sort({ observedAt: -1 }).lean();
+    if (last?.observedAt) {
+      const elapsedSeconds = (observedAtMs - new Date(last.observedAt).getTime()) / 1000;
+      if (elapsedSeconds < POOL_HISTORY_MIN_INTERVAL_SECONDS) {
+        return { saved: false, reason: "throttled" };
+      }
+    }
+  }
+
+  const doc = await PoolSnapshot.create({
+    pair,
+    poolAddress: String(snapshot.poolAddress || "").trim().toUpperCase(),
+    quoteAssetId: Number(snapshot.quoteAssetId || 0),
+    quoteSymbol: String(snapshot.quoteSymbol || "USDC").trim(),
+    usdcPerAlgo: Number(snapshot.usdcPerAlgo || 0),
+    algoReserve: Number(snapshot.algoReserve || 0),
+    quoteReserve: Number(snapshot.quoteReserve || 0),
+    round: Number(snapshot.round || 0),
+    liquidityUsd: Number(snapshot.liquidityUsd || 0),
+    volume24hUsd: Number(snapshot.volume24hUsd || 0),
+    priceChange24hPct: Number(snapshot.priceChange24hPct || 0),
+    observedAt,
+  });
+
+  return { saved: true, id: String(doc._id) };
+}
+
+async function getStoredPoolHistory({ pair = "ALGO_USDC", fromTs, toTs, limit = 1000 } = {}) {
+  const normalizedPair = String(pair || "ALGO_USDC").trim().toUpperCase();
+  const filter = { pair: normalizedPair };
+
+  const from = toEpochSeconds(fromTs);
+  const to = toEpochSeconds(toTs);
+  if (from != null || to != null) {
+    filter.observedAt = {};
+    if (from != null) filter.observedAt.$gte = new Date(from * 1000);
+    if (to != null) filter.observedAt.$lte = new Date(to * 1000);
+  }
+
+  const cappedLimit = Math.min(Math.max(Number(limit) || 1000, 1), POOL_HISTORY_MAX_POINTS);
+  const rows = await PoolSnapshot.find(filter)
+    .sort({ observedAt: -1 })
+    .limit(cappedLimit)
+    .lean();
+
+  return rows
+    .reverse()
+    .map((row) => ({
+      time: Math.floor(new Date(row.observedAt).getTime() / 1000),
+      price: Number(row.usdcPerAlgo || 0),
+      algoReserve: Number(row.algoReserve || 0),
+      quoteReserve: Number(row.quoteReserve || 0),
+      round: Number(row.round || 0),
+    }))
+    .filter((p) => Number.isFinite(p.time) && Number.isFinite(p.price) && p.price > 0);
+}
+
 async function getTinymanSwapEvents({ limit = 25 } = {}) {
   const { poolAddress, quoteAssetId } = await resolveTinymanPoolConfig();
 
@@ -456,4 +541,6 @@ module.exports = {
   getMarketStats,
   getTinymanPoolSnapshot,
   getTinymanSwapEvents,
+  persistPoolSnapshotHistory,
+  getStoredPoolHistory,
 };

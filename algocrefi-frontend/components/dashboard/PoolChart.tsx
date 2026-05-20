@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  fetchPoolHistory,
   fetchPoolSnapshot,
   type PoolSnapshot,
 } from "@/src/utils/marketService";
 
-const TIMEFRAMES = ["5m", "15m", "1h", "4h", "1d"] as const;
+const TIMEFRAMES = ["1h", "6h", "24h", "7d"] as const;
 type TF = (typeof TIMEFRAMES)[number];
 
 type LivePoint = {
@@ -17,12 +18,6 @@ type LivePoint = {
   round: number;
 };
 
-function formatCompact(n: number) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return n.toFixed(0);
-}
-
 function formatUsdMetric(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
@@ -32,15 +27,14 @@ function formatUsdMetric(n: number) {
 }
 
 const LOOKBACK_SECONDS: Record<TF, number> = {
-  "5m": 5 * 60,
-  "15m": 15 * 60,
   "1h": 60 * 60,
-  "4h": 4 * 60 * 60,
-  "1d": 24 * 60 * 60,
+  "6h": 6 * 60 * 60,
+  "24h": 24 * 60 * 60,
+  "7d": 7 * 24 * 60 * 60,
 };
 
 const LIVE_HISTORY_KEY = "algocrefi_live_pool_history_v1";
-const MAX_LIVE_POINTS = 4000;
+const MAX_LIVE_POINTS = 25000;
 
 function loadLiveHistory(): LivePoint[] {
   if (typeof window === "undefined") return [];
@@ -65,13 +59,32 @@ function saveLiveHistory(points: LivePoint[]) {
   localStorage.setItem(LIVE_HISTORY_KEY, JSON.stringify(points.slice(-MAX_LIVE_POINTS)));
 }
 
+function mergeHistoryPoints(points: LivePoint[]) {
+  const byTime = new Map<number, LivePoint>();
+  for (const point of points) {
+    if (!Number.isFinite(point.time) || !Number.isFinite(point.price) || point.price <= 0) continue;
+    byTime.set(point.time, point);
+  }
+  return Array.from(byTime.values())
+    .sort((a, b) => a.time - b.time)
+    .slice(-MAX_LIVE_POINTS);
+}
+
 function groupLiveHistory(points: LivePoint[], lookback: TF) {
   const seconds = LOOKBACK_SECONDS[lookback];
   const minTs = Math.floor(Date.now() / 1000) - seconds;
-  const windowPoints = points.filter((p) => p.time >= minTs);
+  if (!points.length) return [];
+  const firstInWindow = points.findIndex((p) => p.time >= minTs);
+  const windowPoints =
+    firstInWindow === -1
+      ? [points[points.length - 1]]
+      : firstInWindow === 0
+        ? points
+        : [points[firstInWindow - 1], ...points.slice(firstInWindow)];
   if (windowPoints.length === 0) return [];
 
-  const interval = lookback === "5m" ? 30 : lookback === "15m" ? 60 : lookback === "1h" ? 120 : lookback === "4h" ? 300 : 900;
+  const interval =
+    lookback === "1h" ? 30 : lookback === "6h" ? 120 : lookback === "24h" ? 300 : 1800;
   const buckets = new Map<number, { time: number; open: number; high: number; low: number; close: number; volume: number }>();
 
   for (const point of windowPoints) {
@@ -96,40 +109,16 @@ function groupLiveHistory(points: LivePoint[], lookback: TF) {
     existing.close = point.price;
     existing.volume = Math.max(existing.volume, volume);
   }
-  const rows = Array.from(buckets.values()).sort((a, b) => a.time - b.time);
-  const withBodies = rows.map((row, index) => {
-    const prevClose = index > 0 ? rows[index - 1].close : row.open;
-    let open = Number.isFinite(prevClose) ? prevClose : row.open;
-    let close = row.close;
-    let high = Math.max(row.high, open, close);
-    let low = Math.min(row.low, open, close);
-
-    const minBody = Math.max(close * 0.00035, 0.0000015);
-    if (Math.abs(close - open) < minBody) {
-      const trendUp = index > 0 ? close >= rows[index - 1].close : true;
-      if (trendUp) {
-        close = open + minBody;
-      } else {
-        close = Math.max(0, open - minBody);
-      }
-      high = Math.max(high, open, close);
-      low = Math.min(low, open, close);
-    }
-
-    const minWick = Math.max(close * 0.0002, 0.000001);
-    if (high - Math.max(open, close) < minWick) high = Math.max(open, close) + minWick;
-    if (Math.min(open, close) - low < minWick) low = Math.max(0, Math.min(open, close) - minWick);
-
-    return {
-      ...row,
-      open,
-      high,
-      low,
-      close,
-    };
-  });
-
-  return withBodies;
+  return Array.from(buckets.values())
+    .sort((a, b) => a.time - b.time)
+    .filter(
+      (row) =>
+        Number.isFinite(row.time) &&
+        Number.isFinite(row.open) &&
+        Number.isFinite(row.high) &&
+        Number.isFinite(row.low) &&
+        Number.isFinite(row.close)
+    );
 }
 
 export default function PoolChart({ pair = "ALGO_USDC" }: { pair?: string }) {
@@ -137,7 +126,7 @@ export default function PoolChart({ pair = "ALGO_USDC" }: { pair?: string }) {
   const chartRef = useRef<unknown>(null);
   const candleSeriesRef = useRef<{ setData: (rows: unknown[]) => void } | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
-  const [timeframe, setTimeframe] = useState<TF>("1h");
+  const [timeframe, setTimeframe] = useState<TF>("24h");
   const [history, setHistory] = useState<LivePoint[]>([]);
   const [snapshot, setSnapshot] = useState<PoolSnapshot | null>(null);
   const [activityEvents, setActivityEvents] = useState<Array<{ txid: string; timestamp: number; priceHint?: number | null }>>([]);
@@ -179,20 +168,35 @@ export default function PoolChart({ pair = "ALGO_USDC" }: { pair?: string }) {
     setLoading(false);
   }, []);
 
-  const loadMarket = useCallback(async () => {
-    setError(null);
-    const poolSnapshot = await fetchPoolSnapshot();
-    pushSnapshot(poolSnapshot);
-  }, [pushSnapshot]);
-
   useEffect(() => {
-    setLoading(true);
-    setHistory(loadLiveHistory());
-    loadMarket().catch((err: unknown) => {
-      setError(err instanceof Error ? err.message : "Unable to load market data");
-      setLoading(false);
-    });
-  }, [loadMarket]);
+    let cancelled = false;
+    const bootstrap = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const now = Math.floor(Date.now() / 1000);
+        const [poolSnapshot, persisted] = await Promise.all([
+          fetchPoolSnapshot(),
+          fetchPoolHistory({ pair, fromTs: now - 7 * 24 * 3600, toTs: now, limit: 25000 }).catch(() => []),
+        ]);
+        if (cancelled) return;
+
+        const merged = mergeHistoryPoints([...persisted, ...loadLiveHistory()]);
+        setHistory(merged);
+        saveLiveHistory(merged);
+        pushSnapshot(poolSnapshot);
+      } catch (err: unknown) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "Unable to load market data");
+        setLoading(false);
+      }
+    };
+
+    bootstrap();
+    return () => {
+      cancelled = true;
+    };
+  }, [pair, pushSnapshot]);
 
   useEffect(() => {
     const source = new EventSource(`${process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || "https://algocrefi-backend.onrender.com"}/api/market/pool-snapshot/stream`);
@@ -306,7 +310,6 @@ export default function PoolChart({ pair = "ALGO_USDC" }: { pair?: string }) {
       });
 
       candleSeriesRef.current = candleSeries;
-      (chart as { timeScale: () => { fitContent: () => void } }).timeScale().fitContent();
       chartRef.current = chart;
 
       resizeObserverRef.current?.disconnect();
@@ -350,7 +353,17 @@ export default function PoolChart({ pair = "ALGO_USDC" }: { pair?: string }) {
       }))
     );
     if (chartRef.current) {
-      (chartRef.current as { timeScale: () => { fitContent: () => void } }).timeScale().fitContent();
+      const now = Math.floor(Date.now() / 1000);
+      const from = now - LOOKBACK_SECONDS[timeframe];
+      (
+        chartRef.current as {
+          timeScale: () => {
+            setVisibleRange: (range: { from: number; to: number }) => void;
+          };
+        }
+      )
+        .timeScale()
+        .setVisibleRange({ from, to: now });
     }
   }, [history, timeframe]);
 
@@ -361,8 +374,10 @@ export default function PoolChart({ pair = "ALGO_USDC" }: { pair?: string }) {
 
   const grouped = useMemo(() => groupLiveHistory(history, timeframe), [history, timeframe]);
   const latest = history[history.length - 1];
-  const pastIndex = Math.max(0, history.length - Math.floor(24 * 60 * 60 / 2));
-  const basePrice = history[pastIndex]?.price ?? latest?.price ?? 0;
+  const nowTs = Math.floor(Date.now() / 1000);
+  const baselinePoint =
+    [...history].reverse().find((point) => point.time <= nowTs - 24 * 60 * 60) ?? history[0];
+  const basePrice = baselinePoint?.price ?? latest?.price ?? 0;
   const localChange24h = basePrice > 0 && latest ? ((latest.price - basePrice) / basePrice) * 100 : 0;
   const change24h = Number.isFinite(Number(snapshot?.priceChange24hPct))
     ? Number(snapshot?.priceChange24hPct)
@@ -401,23 +416,48 @@ export default function PoolChart({ pair = "ALGO_USDC" }: { pair?: string }) {
             </div>
           </div>
 
-          <button
-            onClick={() => setHidden((prev) => !prev)}
-            style={{
-              background: "#5a5a5a",
-              color: "#e8e8e8",
-              border: "none",
-              borderRadius: 12,
-              padding: "10px 16px",
-              fontFamily: "Inter,sans-serif",
-              fontSize: 12,
-              fontWeight: 700,
-              letterSpacing: "0.03em",
-              cursor: "pointer",
-            }}
-          >
-            {hidden ? "SHOW" : "HIDE"}
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {!hidden && (
+              <div style={{ display: "inline-flex", background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: 3, gap: 2 }}>
+                {TIMEFRAMES.map((tf) => (
+                  <button
+                    key={tf}
+                    onClick={() => setTimeframe(tf)}
+                    style={{
+                      background: timeframe === tf ? "rgba(0,255,209,0.12)" : "transparent",
+                      color: timeframe === tf ? "#00FFD1" : "rgba(255,255,255,0.4)",
+                      border: "none",
+                      borderRadius: 6,
+                      padding: "5px 10px",
+                      fontFamily: "Inter,sans-serif",
+                      fontSize: 12,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {tf}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => setHidden((prev) => !prev)}
+              style={{
+                background: "#5a5a5a",
+                color: "#e8e8e8",
+                border: "none",
+                borderRadius: 12,
+                padding: "10px 16px",
+                fontFamily: "Inter,sans-serif",
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: "0.03em",
+                cursor: "pointer",
+              }}
+            >
+              {hidden ? "SHOW" : "HIDE"}
+            </button>
+          </div>
         </div>
 
         {!hidden && (

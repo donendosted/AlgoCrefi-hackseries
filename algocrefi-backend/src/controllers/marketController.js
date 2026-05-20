@@ -1,4 +1,11 @@
-const { getMarketStats, getOhlc, getTinymanPoolSnapshot, getTinymanSwapEvents } = require("../services/marketDataService");
+const {
+  getMarketStats,
+  getOhlc,
+  getTinymanPoolSnapshot,
+  getTinymanSwapEvents,
+  persistPoolSnapshotHistory,
+  getStoredPoolHistory,
+} = require("../services/marketDataService");
 
 function parseUnix(value, fallback) {
   const n = Number(value);
@@ -36,9 +43,31 @@ exports.getStats = async (_req, res) => {
 exports.getPoolSnapshot = async (_req, res) => {
   try {
     const snapshot = await getTinymanPoolSnapshot();
+    persistPoolSnapshotHistory(snapshot).catch((err) => {
+      console.warn("Pool snapshot persistence failed:", err?.message || err);
+    });
     return res.json(snapshot);
   } catch (err) {
     return res.status(500).json({ error: err.message || "Failed to fetch pool snapshot" });
+  }
+};
+
+exports.getPoolHistory = async (req, res) => {
+  try {
+    const pair = String(req.query.pair || "ALGO_USDC");
+    const now = Math.floor(Date.now() / 1000);
+    const toTs = parseUnix(req.query.to, now);
+    const fromTs = parseUnix(req.query.from, now - 24 * 3600);
+    const limit = parseUnix(req.query.limit, 1000);
+
+    if (toTs <= fromTs) {
+      return res.status(400).json({ error: "Invalid time range" });
+    }
+
+    const points = await getStoredPoolHistory({ pair, fromTs, toTs, limit });
+    return res.json({ pair, points });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || "Failed to fetch stored pool history" });
   }
 };
 
@@ -63,6 +92,9 @@ exports.streamPoolSnapshot = async (req, res) => {
   const emitSnapshot = async () => {
     try {
       const snapshot = await getTinymanPoolSnapshot();
+      persistPoolSnapshotHistory(snapshot).catch((err) => {
+        console.warn("Pool snapshot persistence failed:", err?.message || err);
+      });
       send("snapshot", snapshot);
       try {
         const events = await getTinymanSwapEvents({ limit: 10 });
