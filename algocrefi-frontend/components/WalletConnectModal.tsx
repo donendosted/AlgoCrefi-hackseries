@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useWallet, WalletId } from "@txnlab/use-wallet-react";
 import { login, signup } from "@/src/utils/authService";
 import { ensureAlgorandEvmChain } from "@/src/utils/ensureAlgorandEvmChain";
-import { hasWalletConnectConfig } from "@/src/utils/xchainConfig";
 import { disconnectWallet, truncateAddress } from "@/src/utils/walletService";
 
 interface WalletConnectModalProps {
@@ -23,10 +22,10 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
   const { activeAddress, activeWallet, isReady, wallets } = useWallet();
 
   const walletCards = [
-    { key: "pera", id: WalletId.PERA, label: "Pera Wallet", subtitle: "Official Algorand wallet", color: "#00FFD1" },
-    { key: "defly", id: WalletId.DEFLY, label: "Defly Wallet", subtitle: "Advanced Algorand wallet", color: "#7B2FFF" },
-    { key: "lute", id: WalletId.LUTE, label: "Lute Wallet", subtitle: "Algorand web wallet", color: "#FFB347" },
-    { key: "metamask", id: WalletId.RAINBOWKIT, label: "MetaMask", subtitle: "xChain EVM wallet via RainbowKit", color: "#F6851B" },
+    { key: "pera", id: WalletId.PERA, label: "Pera Wallet", subtitle: "Official Algorand wallet", color: "#00FFD1", logo: "/perawallet_logo.png" },
+    { key: "defly", id: WalletId.DEFLY, label: "Defly Wallet", subtitle: "Advanced Algorand wallet", color: "#7B2FFF", logo: "/deflywallet_logo.png" },
+    { key: "lute", id: WalletId.LUTE, label: "Lute Wallet", subtitle: "Algorand web wallet", color: "#FFB347", logo: "/lutewallet_logo.png" },
+    { key: "metamask", id: WalletId.RAINBOWKIT, label: "MetaMask", subtitle: "xChain EVM wallet via RainbowKit", color: "#F6851B", logo: "/metamask_logo.png" },
   ] as const;
 
   const handleWalletSelect = async (walletId: WalletId, walletKey: string) => {
@@ -159,24 +158,30 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
           overflowY: "auto",
         }}
       >
-        {/* Decorative header — orbital rings */}
+        {/* Header logo */}
         <div
           aria-hidden
           style={{
             textAlign: "center",
-            marginBottom: 24,
-            opacity: 0.4,
+            marginBottom: 20,
             height: 80,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <svg width="80" height="80" viewBox="0 0 80 80">
-            <circle cx="40" cy="40" r="32" stroke="#00FFD1" strokeWidth="0.75" fill="none" opacity="0.3" />
-            <circle cx="40" cy="40" r="24" stroke="#7B2FFF" strokeWidth="0.75" fill="none" opacity="0.4" />
-            <circle cx="40" cy="40" r="16" stroke="#00FFD1" strokeWidth="1" fill="none" opacity="0.5" strokeDasharray="8 4" />
-          </svg>
+          <img
+            src="/logo.jpeg"
+            alt="AlgoCrefi logo"
+            style={{
+              width: 72,
+              height: 72,
+              borderRadius: "25%",
+              objectFit: "cover",
+              border: "1px solid rgba(0,255,209,0.35)",
+              boxShadow: "0 0 22px rgba(0,255,209,0.18)",
+            }}
+          />
         </div>
 
         {/* Close button */}
@@ -260,23 +265,19 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
                     e.currentTarget.style.transform = "translateX(0)";
                   }}
                 >
-                  <div
+                  <img
+                    src={wallet.logo}
+                    alt={`${wallet.label} logo`}
                     style={{
                       width: 36,
                       height: 36,
                       borderRadius: "50%",
-                      background: `${wallet.color}1A`,
+                      objectFit: "cover",
                       border: `1px solid ${wallet.color}33`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
+                      background: "rgba(255,255,255,0.02)",
                       flexShrink: 0,
                     }}
-                  >
-                    <span style={{ fontFamily: "Inter,sans-serif", fontSize: 14, fontWeight: 700, color: wallet.color }}>
-                      {wallet.label[0]}
-                    </span>
-                  </div>
+                  />
                   <div style={{ flex: 1, textAlign: "left" }}>
                     <div style={{ fontFamily: "Inter,sans-serif", fontSize: 15, fontWeight: 500, color: "#F0F0F0" }}>
                       {wallet.label}
@@ -290,10 +291,6 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
                   </span>
                 </button>
               ))}
-              <p style={{ margin: "4px 0 0 0", textAlign: "center", fontFamily: "Inter,sans-serif", fontSize: 12, color: "rgba(255,255,255,0.35)", lineHeight: 1.6 }}>
-                Supported here: Pera, Defly, Lute, MetaMask, and other RainbowKit-backed EVM wallets.
-                {!hasWalletConnectConfig ? " Add NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID before production use." : ""}
-              </p>
             </div>
             {error && (
               <div
@@ -588,3 +585,4 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
     </>
   );
 }
+

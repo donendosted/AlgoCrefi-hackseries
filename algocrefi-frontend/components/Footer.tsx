@@ -50,7 +50,28 @@ export default function Footer() {
         >
           {/* Col 1 — Logo + tagline */}
           <div style={col(0)}>
-            <div className="font-display" style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 12 }}>
+            <div
+              className="font-display"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 10,
+                fontSize: 20,
+                fontWeight: 700,
+                letterSpacing: "-0.02em",
+                marginBottom: 12,
+              }}
+            >
+              <img
+                src="/logo.jpeg"
+                alt="AlgoCrefi logo"
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: "0%",
+                  objectFit: "cover",
+                }}
+              />
               <span style={{ color: "#F0F0F0" }}>Algo</span>
               <span style={{ color: "#00FFD1" }}>Crefi</span>
             </div>
