@@ -554,6 +554,7 @@ async function getLendingUserState(walletAddress) {
       readLocalStateUint(walletAddress, appId, "due_ts"),
       readLocalStateUint(walletAddress, appId, "aura_earned"),
       readLocalStateUint(walletAddress, appId, "aura_penalty"),
+      executeReadonlyOrZero(appId, METHODS.getLendingUnsecuredLimit, [walletAddress]),
       readLocalStateUint(walletAddress, appId, "aura_blacklisted"),
       getPoolAlgo(),
     ]);
@@ -580,6 +581,18 @@ async function getLendingUserState(walletAddress) {
     availableAlgoUnits: Number(availableAlgo || 0) / MICRO_ALGO,
     unsecuredEligible: netAuraPoints >= MIN_AURA_FOR_UNSECURED && Number(blacklisted || 0) === 0,
   };
+}
+
+async function getLendingActiveLoan(walletAddress) {
+  const appId = getLendingAppId();
+  const activeLoan = await readLocalStateUint(walletAddress, appId, "loan_active");
+  return Number(activeLoan || 0);
+}
+
+async function getLendingDueAmount(walletAddress) {
+  const appId = getLendingAppId();
+  const dueAmount = await readLocalStateUint(walletAddress, appId, "due_amount");
+  return Number(dueAmount || 0);
 }
 
 async function getAuraUserState(walletAddress) {
@@ -695,6 +708,8 @@ module.exports = {
   submitUnsecuredBorrowGroup,
 
   getLendingUserState,
+  getLendingActiveLoan,
+  getLendingDueAmount,
   getAuraUserState,
 
   syncAuraFromRepay,

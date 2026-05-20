@@ -8,6 +8,8 @@ const {
   submitRepayGroup,
   submitUnsecuredBorrowGroup,
   getLendingUserState,
+  getLendingActiveLoan,
+  getLendingDueAmount,
   getAuraUserState,
   syncAuraFromRepay,
   liquidateDefaultAndSyncAura,
@@ -17,6 +19,87 @@ const {
   MIN_AURA_FOR_UNSECURED,
   MICRO_ALGO,
 } = require("../services/loanService");
+const User = require("../models/userModel");
+
+const activeLoanCountCache = {
+  ts: 0,
+  value: {
+    activeLoanWalletCount: 0,
+    pendingLoanMicroAlgo: 0,
+  },
+};
+
+const ACTIVE_LOAN_COUNT_CACHE_TTL_MS = Math.max(
+  5_000,
+  Number(process.env.ACTIVE_LOAN_COUNT_CACHE_TTL_MS || 30_000)
+);
+const ACTIVE_LOAN_COUNT_SCAN_LIMIT = Math.max(
+  1,
+  Number(process.env.ACTIVE_LOAN_COUNT_SCAN_LIMIT || 5000)
+);
+const ACTIVE_LOAN_COUNT_CONCURRENCY = Math.max(
+  1,
+  Number(process.env.ACTIVE_LOAN_COUNT_CONCURRENCY || 12)
+);
+
+async function getActiveLoanCountFromUsers() {
+  const now = Date.now();
+  if (now - activeLoanCountCache.ts < ACTIVE_LOAN_COUNT_CACHE_TTL_MS) {
+    return activeLoanCountCache.value;
+  }
+
+  const users = await User.find({
+    walletAddress: { $exists: true, $type: "string", $ne: "" },
+  })
+    .select("walletAddress -_id")
+    .limit(ACTIVE_LOAN_COUNT_SCAN_LIMIT)
+    .lean();
+
+  const uniqueWallets = Array.from(
+    new Set(
+      users
+        .map((u) => String(u.walletAddress || "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  let activeCount = 0;
+  let pendingLoanMicroAlgo = 0;
+  for (let i = 0; i < uniqueWallets.length; i += ACTIVE_LOAN_COUNT_CONCURRENCY) {
+    const slice = uniqueWallets.slice(i, i + ACTIVE_LOAN_COUNT_CONCURRENCY);
+    const results = await Promise.all(
+      slice.map(async (walletAddress) => {
+        try {
+          const [activeLoan, dueAmount] = await Promise.all([
+            getLendingActiveLoan(walletAddress),
+            getLendingDueAmount(walletAddress),
+          ]);
+          return {
+            hasActiveLoan: Number(activeLoan || 0) > 0 || Number(dueAmount || 0) > 0,
+            dueAmountMicroAlgo: Math.max(0, Number(dueAmount || 0)),
+          };
+        } catch {
+          return {
+            hasActiveLoan: false,
+            dueAmountMicroAlgo: 0,
+          };
+        }
+      })
+    );
+    activeCount += results.reduce((sum, row) => sum + (row.hasActiveLoan ? 1 : 0), 0);
+    pendingLoanMicroAlgo += results.reduce(
+      (sum, row) => sum + Math.max(0, Number(row.dueAmountMicroAlgo || 0)),
+      0
+    );
+  }
+
+  activeLoanCountCache.ts = now;
+  activeLoanCountCache.value = {
+    activeLoanWalletCount: activeCount,
+    pendingLoanMicroAlgo,
+  };
+  return activeLoanCountCache.value;
+}
 
 exports.quoteCollateral = async (req, res) => {
   try {
@@ -303,6 +386,10 @@ exports.getLoanInfo = async (req, res) => {
     const lending = walletAddress
       ? await getLendingUserState(walletAddress)
       : null;
+    const protocolLoanMetrics = await getActiveLoanCountFromUsers().catch(() => ({
+      activeLoanWalletCount: 0,
+      pendingLoanMicroAlgo: 0,
+    }));
 
     res.json({
       success: true,
@@ -311,6 +398,10 @@ exports.getLoanInfo = async (req, res) => {
       usdcAssetId: getUsdcAssetId(),
       unsecuredPolicy: {
         minAuraPoints: MIN_AURA_FOR_UNSECURED,
+      },
+      protocolMetrics: {
+        activeLoanWalletCount: Number(protocolLoanMetrics.activeLoanWalletCount || 0),
+        pendingLoanMicroAlgo: Number(protocolLoanMetrics.pendingLoanMicroAlgo || 0),
       },
       walletAddress,
       lending,

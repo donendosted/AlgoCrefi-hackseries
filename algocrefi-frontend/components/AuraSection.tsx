@@ -199,9 +199,9 @@ export default function AuraSection() {
 
             {/* Center content */}
             <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2 }}>
-              <span style={{ fontFamily: "Inter,sans-serif", fontSize: 10, color: "rgba(255,183,71,0.5)", letterSpacing: "0.15em", textTransform: "uppercase" }}>AURA SCORE</span>
-              <span className="font-display" style={{ fontSize: 48, fontWeight: 800, color: "#FFB347", lineHeight: 1, letterSpacing: "-0.04em" }}>1</span>
-              <span style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: "rgba(255,183,71,0.4)" }}>/ 30 pts needed</span>
+              <span style={{ fontFamily: "Inter,sans-serif", fontSize: 10, color: "rgba(255,183,71,0.5)", letterSpacing: "0.15em", textTransform: "uppercase" }}>AURA TARGET</span>
+              <span className="font-display" style={{ fontSize: 48, fontWeight: 800, color: "#FFB347", lineHeight: 1, letterSpacing: "-0.04em" }}>30</span>
+              <span style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: "rgba(255,183,71,0.4)" }}>pts required</span>
             </div>
           </div>
 
@@ -221,10 +221,10 @@ export default function AuraSection() {
               SCORE_READOUT · TESTNET
             </div>
             {[
-              ["earned", "1 pts"],
-              ["penalty", "0 pts"],
-              ["net_score", "1 pts"],
-              ["status", "building..."],
+              ["earned", "--"],
+              ["penalty", "--"],
+              ["net_score", "--"],
+              ["status", "connect wallet"],
             ].map(([k, v]) => (
               <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(255,183,71,0.06)" }}>
                 <span style={{ fontSize: 12, color: "rgba(255,183,71,0.4)" }}>{k}</span>

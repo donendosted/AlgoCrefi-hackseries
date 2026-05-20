@@ -9,7 +9,7 @@ const NAV_LINKS = [
   { label: "Pool", href: "#pool" },
   { label: "Lend", href: "#lend" },
   { label: "Aura", href: "#aura" },
-  { label: "Analytics", href: "#analytics" },
+  // { label: "Analytics", href: "#analytics" },
 ];
 
 export default function Navbar({ onEnterApp }: { onEnterApp: () => void }) {
