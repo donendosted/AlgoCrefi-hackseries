@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchPoolSnapshot } from "@/src/utils/marketService";
 import { getPoolInfo } from "@/src/utils/poolService";
 import { getLoanInfoPublic } from "@/src/utils/loanService";
+import PoolValueChart from "@/components/dashboard/PoolValueChart";
 
 function formatAlgo(value: number | null) {
   if (!Number.isFinite(value ?? NaN)) return "--";
@@ -323,13 +324,6 @@ export default function HeroSection({ onEnterApp }: { onEnterApp: () => void }) 
     transition: `opacity 0.8s ease ${delay}s, transform 0.8s ease ${delay}s`,
   });
 
-  const lineWrap: React.CSSProperties = { display: "block", overflow: "hidden", lineHeight: 0.88 };
-  const lineIn = (delay: number): React.CSSProperties => ({
-    display: "block",
-    transform: ready ? "translateY(0)" : "translateY(110%)",
-    transition: `transform 0.95s cubic-bezier(0.16,1,0.3,1) ${delay}s`,
-  });
-
   const panelStats = [
     { label: "TVL", val: formatAlgo(poolAlgo), accent: "#00FFD1", delay: 0.6 },
     { label: "SHARE_PRICE", val: formatSharePrice(sharePriceAlgo), accent: "#5EEBFF", delay: 0.72 },
@@ -356,12 +350,13 @@ export default function HeroSection({ onEnterApp }: { onEnterApp: () => void }) 
         zIndex: 1,
         minHeight: "100vh",
         display: "grid",
-        gridTemplateColumns: "55fr 45fr",
+        gridTemplateColumns: "1fr",
         alignItems: "stretch",
         overflow: "hidden",
       }}
     >
       <div
+        className="hero-inner"
         style={{
           display: "flex",
           flexDirection: "column",
@@ -370,13 +365,57 @@ export default function HeroSection({ onEnterApp }: { onEnterApp: () => void }) 
           position: "relative",
         }}
       >
+        <h1
+          className="font-display hero-title"
+          style={{
+            ...fadeIn(0.42),
+            margin: "0 0 20px 0",
+            fontWeight: 700,
+            letterSpacing: "-0.02em",
+            lineHeight: 0.9,
+            color: "#F0F0F0",
+          }}
+        >
+          <span
+            style={{
+              display: "block",
+              fontSize: "clamp(58px,7.2vw,108px)",
+              color: "transparent",
+              WebkitTextStroke: "1px rgba(0,255,209,0.65)",
+            }}
+          >
+            AURA++
+          </span>
+          <span
+            style={{
+              display: "block",
+              fontSize: "clamp(28px,3.4vw,48px)",
+              color: "#F0F0F0",
+              marginTop: 6,
+            }}
+          >
+            in DeFi with
+          </span>
+          <span
+            style={{
+              display: "block",
+              fontSize: "clamp(56px,6.8vw,102px)",
+              color: "#F0F0F0",
+              marginTop: 6,
+            }}
+          >
+            <span style={{ color: "#F0F0F0" }}>Algo</span><span style={{ color: "#00FFD1" }}>Crefi</span>
+          </span>
+        </h1>
+
         <div
+          className="hero-status"
           style={{
             ...fadeIn(0.2),
             display: "inline-flex",
             alignItems: "center",
             gap: 10,
-            marginBottom: 36,
+            marginBottom: 28,
           }}
         >
           <span
@@ -402,46 +441,31 @@ export default function HeroSection({ onEnterApp }: { onEnterApp: () => void }) 
           </span>
         </div>
 
-        <h1 className="font-display" style={{ margin: 0, fontWeight: 800, letterSpacing: "-0.04em" }}>
-          <span style={lineWrap}>
-            <span
-              style={{ ...lineIn(0.4), display: "block", fontSize: "clamp(72px,9.5vw,148px)", color: "#F0F0F0" }}
-            >
-              Lend.
-            </span>
-          </span>
-          <span style={lineWrap}>
-            <span
-              style={{ ...lineIn(0.52), display: "block", fontSize: "clamp(72px,9.5vw,148px)", color: "#F0F0F0" }}
-            >
-              Earn.
-            </span>
-          </span>
-          <span style={{ ...lineWrap, lineHeight: 0.82, marginTop: 4, overflow: "visible" }}>
-            <span
-              style={{
-                ...lineIn(0.64),
-                display: "block",
-                fontSize: "clamp(72px,9.5vw,148px)",
-                color: "transparent",
-                WebkitTextStroke: "1.5px rgba(0,255,209,0.55)",
-              }}
-            >
-              On-chain.
-            </span>
-          </span>
-        </h1>
-
-        <TerminalBlock
-          ready={ready}
-          appId={appId}
-          poolAlgo={poolAlgo}
-          sharePriceAlgo={sharePriceAlgo}
-          algoUsdc={algoUsdc}
-          round={latestRound}
-        />
+        <div
+          className="hero-chart"
+          style={{
+            ...fadeIn(1.05),
+            marginTop: 18,
+            width: "100%",
+            maxWidth: 760,
+            height: 330,
+            background: "linear-gradient(160deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 20,
+            overflow: "hidden",
+          }}
+        >
+          <PoolValueChart
+            poolBalanceMicro={
+              Number.isFinite(poolAlgo ?? NaN) && (poolAlgo ?? 0) > 0
+                ? Math.floor((poolAlgo ?? 0) * 1_000_000)
+                : 0
+            }
+          />
+        </div>
 
         <div
+          className="hero-actions"
           style={{
             ...fadeIn(1.4),
             display: "flex",
@@ -513,132 +537,7 @@ export default function HeroSection({ onEnterApp }: { onEnterApp: () => void }) 
       </div>
 
       <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          padding: "120px 5vw 80px 4vw",
-          borderLeft: "1px solid rgba(0,255,209,0.08)",
-          position: "relative",
-          background: "linear-gradient(135deg, rgba(0,255,209,0.015) 0%, transparent 60%)",
-        }}
-      >
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            top: -60,
-            right: -60,
-            width: 280,
-            height: 280,
-            pointerEvents: "none",
-            opacity: 0.6,
-          }}
-        >
-          <svg
-            width="280"
-            height="280"
-            viewBox="0 0 280 280"
-            style={{ position: "absolute", inset: 0, animation: "spin-cw 20s linear infinite" }}
-          >
-            <circle cx="140" cy="140" r="130" stroke="#00FFD1" strokeWidth="0.5" fill="none" />
-          </svg>
-          <svg
-            width="280"
-            height="280"
-            viewBox="0 0 280 280"
-            style={{ position: "absolute", inset: 0, animation: "spin-ccw 13s linear infinite" }}
-          >
-            <circle cx="140" cy="140" r="95" stroke="#7B2FFF" strokeWidth="0.5" fill="none" />
-          </svg>
-          <svg
-            width="280"
-            height="280"
-            viewBox="0 0 280 280"
-            style={{ position: "absolute", inset: 0, animation: "spin-cw 7s linear infinite" }}
-          >
-            <circle cx="140" cy="140" r="60" stroke="#00FFD1" strokeWidth="0.75" fill="none" strokeDasharray="16 6" />
-          </svg>
-        </div>
-
-        <div
-          style={{
-            ...fadeIn(0.5),
-            fontFamily: "monospace",
-            fontSize: 9,
-            color: "rgba(255,255,255,0.2)",
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            marginBottom: 32,
-          }}
-        >
-          // PROTOCOL_METRICS
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-          {panelStats.map((s, i) => (
-            <div
-              key={i}
-              style={{
-                ...fadeIn(s.delay),
-                padding: "20px 0",
-                borderBottom: "1px solid rgba(255,255,255,0.05)",
-                display: "grid",
-                gridTemplateColumns: "1fr auto",
-                alignItems: "center",
-                gap: 16,
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    fontFamily: "monospace",
-                    fontSize: 9,
-                    color: "rgba(255,255,255,0.25)",
-                    letterSpacing: "0.12em",
-                    marginBottom: 6,
-                  }}
-                >
-                  {s.label}
-                </div>
-                <div
-                  className="font-display"
-                  style={{
-                    fontSize: "clamp(22px,2.8vw,34px)",
-                    fontWeight: 700,
-                    color: s.accent,
-                    lineHeight: 1,
-                    letterSpacing: "-0.02em",
-                  }}
-                >
-                  {s.val}
-                </div>
-              </div>
-              <div style={{ width: 3, height: 32, background: s.accent, opacity: 0.35, borderRadius: 2, flexShrink: 0 }} />
-            </div>
-          ))}
-        </div>
-
-        <div style={{ ...fadeIn(1.1), marginTop: 32, paddingTop: 20, borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {[
-              ["NETWORK", "Algorand Testnet"],
-              ["APP_ID", appId],
-              ["MIN_AURA", minAuraPoints == null ? "--" : `${minAuraPoints} pts`],
-              ["STANDARD", "ARC-4 Compliant"],
-            ].map(([k, v]) => (
-              <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontFamily: "monospace", fontSize: 10, color: "rgba(255,255,255,0.2)", letterSpacing: "0.1em" }}>
-                  {k}
-                </span>
-                <span style={{ fontFamily: "monospace", fontSize: 10, color: "rgba(255,255,255,0.5)" }}>{v}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div
+        className="hero-scroll"
         style={{
           position: "absolute",
           bottom: 24,
@@ -687,11 +586,54 @@ export default function HeroSection({ onEnterApp }: { onEnterApp: () => void }) 
 
       <style>{`
         @media (max-width: 768px) {
-          #hero { grid-template-columns: 1fr !important; }
-          #hero > div:last-of-type {
-            border-left: none !important;
-            border-top: 1px solid rgba(0,255,209,0.08) !important;
-            padding-top: 60px !important;
+          #hero {
+            grid-template-columns: 1fr !important;
+            min-height: auto !important;
+          }
+          .hero-inner {
+            padding: 104px 16px 112px 16px !important;
+            justify-content: flex-start !important;
+          }
+          .hero-title {
+            margin-bottom: 14px !important;
+            line-height: 0.96 !important;
+          }
+          .hero-status {
+            margin-bottom: 16px !important;
+            flex-wrap: wrap !important;
+            row-gap: 6px !important;
+          }
+          .hero-chart {
+            height: 250px !important;
+            max-width: 100% !important;
+            border-radius: 14px !important;
+          }
+          .hero-actions {
+            margin-top: 20px !important;
+            width: 100% !important;
+          }
+          .hero-actions button {
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+            padding: 12px 14px !important;
+          }
+          .hero-scroll {
+            display: none !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .hero-inner {
+            padding: 94px 12px 108px 12px !important;
+          }
+          .hero-chart {
+            height: 220px !important;
+          }
+          .hero-actions {
+            gap: 8px !important;
+            flex-direction: column !important;
+          }
+          .hero-actions button {
+            width: 100% !important;
           }
         }
       `}</style>

@@ -14,7 +14,7 @@ const NAV_LINKS = [
 
 export default function Navbar({ onEnterApp }: { onEnterApp: () => void }) {
   const router = useRouter();
-  const [visible, setVisible] = useState(true);
+  const [visible, setVisible] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeLink, setActiveLink] = useState("Pool");
   const [walletChip, setWalletChip] = useState<string | null>(null);
@@ -23,7 +23,8 @@ export default function Navbar({ onEnterApp }: { onEnterApp: () => void }) {
   useEffect(() => {
     const handleScroll = () => {
       const currentY = window.scrollY;
-      setVisible(currentY < lastScrollY.current || currentY < 60);
+      const isScrollingDown = currentY > lastScrollY.current;
+      setVisible(isScrollingDown && currentY > 20);
       lastScrollY.current = currentY;
     };
 
@@ -49,6 +50,7 @@ export default function Navbar({ onEnterApp }: { onEnterApp: () => void }) {
   return (
     <>
       <header
+        className="top-navbar"
         style={{
           position: "fixed",
           top: "20px",
@@ -79,6 +81,9 @@ export default function Navbar({ onEnterApp }: { onEnterApp: () => void }) {
           <a
             href="#"
             style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0",
               fontFamily: "'Space Grotesk', sans-serif",
               fontWeight: 600,
               fontSize: "16px",
@@ -87,8 +92,16 @@ export default function Navbar({ onEnterApp }: { onEnterApp: () => void }) {
             }}
             aria-label="AlgoCrefi home"
           >
-            <span style={{ color: "#F0F0F0" }}>Algo</span>
-            <span style={{ color: "#00FFD1" }}>Crefi</span>
+            <img
+              src="/logo.jpeg"
+              alt="AlgoCrefi logo"
+              style={{
+                width: 24,
+                height: 24,
+                borderRadius: "50%",
+                objectFit: "cover",
+              }}
+            />
           </a>
 
           {/* Desktop nav links */}
@@ -287,10 +300,80 @@ export default function Navbar({ onEnterApp }: { onEnterApp: () => void }) {
         </div>
       )}
 
+      {/* Mobile bottom navbar */}
+      <nav
+        className="mobile-bottom-nav"
+        aria-label="Mobile navigation"
+        style={{
+          position: "fixed",
+          left: 12,
+          right: 12,
+          bottom: 12,
+          zIndex: 999,
+          background: "rgba(8,8,16,0.94)",
+          backdropFilter: "blur(18px) saturate(170%)",
+          WebkitBackdropFilter: "blur(18px) saturate(170%)",
+          border: "1px solid rgba(255,255,255,0.10)",
+          borderRadius: 16,
+          padding: "10px 12px",
+          display: "none",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
+        {NAV_LINKS.map((link) => (
+          <a
+            key={`mobile-${link.label}`}
+            href={link.href}
+            onClick={() => setActiveLink(link.label)}
+            style={{
+              flex: 1,
+              textAlign: "center",
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 12,
+              color: activeLink === link.label ? "#00FFD1" : "#A1A1AA",
+              textDecoration: "none",
+              borderRadius: 10,
+              padding: "10px 8px",
+              border: activeLink === link.label ? "1px solid rgba(0,255,209,0.25)" : "1px solid transparent",
+              background: activeLink === link.label ? "rgba(0,255,209,0.08)" : "transparent",
+            }}
+          >
+            {link.label}
+          </a>
+        ))}
+        <button
+          onClick={() => {
+            if (walletChip) {
+              router.push("/dashboard");
+              return;
+            }
+            onEnterApp();
+          }}
+          style={{
+            border: "1px solid #00FFD1",
+            background: "transparent",
+            color: "#00FFD1",
+            borderRadius: 10,
+            padding: "10px 12px",
+            fontSize: 12,
+            fontWeight: 600,
+            fontFamily: "'Inter', sans-serif",
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+          }}
+          aria-label="Launch App"
+        >
+          {walletChip ? "Dashboard" : "Launch"}
+        </button>
+      </nav>
+
       <style>{`
         @media (max-width: 768px) {
+          .top-navbar { display: none !important; }
           .desktop-nav { display: none !important; }
           .hamburger-btn { display: flex !important; }
+          .mobile-bottom-nav { display: flex !important; }
         }
       `}</style>
     </>
