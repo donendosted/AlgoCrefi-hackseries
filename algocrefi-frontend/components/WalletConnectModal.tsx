@@ -1,79 +1,45 @@
 "use client";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { login, logout, signup } from "@/src/utils/authService";
-import { bindPeraDisconnect as bindPeraDisconnectEvent, connectLute, connectPera, truncateAddress } from "@/src/utils/walletService";
+import { useWallet, WalletId } from "@txnlab/use-wallet-react";
+import { login, signup } from "@/src/utils/authService";
+import { hasWalletConnectConfig } from "@/src/utils/xchainConfig";
+import { disconnectWallet, truncateAddress } from "@/src/utils/walletService";
 
 interface WalletConnectModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-type Wallet = "pera" | "lute" | "exodus";
-
 export default function WalletConnectModal({ isOpen, onClose }: WalletConnectModalProps) {
   const router = useRouter();
-  const [step, setStep] = useState<"wallet" | "password">("wallet");
-  const [selectedWallet, setSelectedWallet] = useState<Wallet | null>(null);
-  const [walletAddress, setWalletAddress] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingAction, setLoadingAction] = useState<"login" | "signup" | null>(null);
-  const [walletLoading, setWalletLoading] = useState<Wallet | null>(null);
+  const [walletLoading, setWalletLoading] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const peraDisconnectBound = useRef(false);
+  const { activeAddress, activeWallet, isReady, wallets } = useWallet();
 
-  const walletConfig: Record<Wallet, { label: string; subtitle: string; color: string; accentColor: string; bgColor: string; borderColor: string }> = {
-    pera: {
-      label: "Pera Wallet",
-      subtitle: "Official Algorand wallet",
-      color: "#00FFD1",
-      accentColor: "#00FFD1",
-      bgColor: "rgba(0,255,209,0.1)",
-      borderColor: "rgba(0,255,209,0.2)",
-    },
-    lute: {
-      label: "Lute Wallet",
-      subtitle: "Algorand Web Wallet",
-      color: "#7B2FFF",
-      accentColor: "#7B2FFF",
-      bgColor: "rgba(123,47,255,0.1)",
-      borderColor: "rgba(123,47,255,0.2)",
-    },
-    exodus: {
-      label: "Exodus",
-      subtitle: "Multi-chain wallet",
-      color: "#FFB347",
-      accentColor: "#FFB347",
-      bgColor: "rgba(255,183,71,0.1)",
-      borderColor: "rgba(255,183,71,0.2)",
-    },
-  };
+  const walletCards = [
+    { key: "pera", id: WalletId.PERA, label: "Pera Wallet", subtitle: "Official Algorand wallet", color: "#00FFD1" },
+    { key: "defly", id: WalletId.DEFLY, label: "Defly Wallet", subtitle: "Advanced Algorand wallet", color: "#7B2FFF" },
+    { key: "lute", id: WalletId.LUTE, label: "Lute Wallet", subtitle: "Algorand web wallet", color: "#FFB347" },
+    { key: "metamask", id: WalletId.RAINBOWKIT, label: "MetaMask", subtitle: "xChain EVM wallet via RainbowKit", color: "#F6851B" },
+  ] as const;
 
-  const bindPeraDisconnect = () => {
-    if (peraDisconnectBound.current) return;
-    bindPeraDisconnectEvent(() => logout()).catch(() => {});
-    peraDisconnectBound.current = true;
-  };
+  const handleWalletSelect = async (walletId: WalletId, walletKey: string) => {
+    const wallet = wallets.find((item) => item.id === walletId);
+    if (!wallet) {
+      setError("Wallet option is not available");
+      return;
+    }
 
-  const handleWalletSelect = async (wallet: Wallet) => {
-    if (wallet === "exodus") return; // Disabled for now
-    setWalletLoading(wallet);
+    setWalletLoading(walletKey);
     setError("");
 
     try {
-      const accounts = wallet === "pera" ? await connectPera() : await connectLute();
-      const nextWalletAddress = accounts[0];
-      if (!nextWalletAddress) {
-        throw new Error("No wallet account received from wallet provider");
-      }
-
-      if (wallet === "pera") bindPeraDisconnect();
-
-      setSelectedWallet(wallet);
-      setWalletAddress(nextWalletAddress);
-      setStep("password");
+      await wallet.connect();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Wallet connection failed");
     } finally {
@@ -82,7 +48,7 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
   };
 
   const handleLogin = async () => {
-    if (!selectedWallet || !walletAddress.trim() || !password) {
+    if (!activeAddress || !password) {
       setError("Please connect a wallet and enter your password");
       return;
     }
@@ -92,8 +58,7 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
     setError("");
 
     try {
-      await login(walletAddress.trim(), password);
-      localStorage.setItem("algocrefi_wallet_type", selectedWallet);
+      await login(activeAddress.trim(), password);
 
       setTimeout(() => {
         onClose();
@@ -108,7 +73,7 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
   };
 
   const handleSignup = async () => {
-    if (!selectedWallet || !walletAddress.trim() || !password) {
+    if (!activeAddress || !password) {
       setError("Please connect a wallet and enter your password");
       return;
     }
@@ -118,9 +83,8 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
     setError("");
 
     try {
-      await signup(walletAddress.trim(), password);
-      await login(walletAddress.trim(), password);
-      localStorage.setItem("algocrefi_wallet_type", selectedWallet);
+      await signup(activeAddress.trim(), password);
+      await login(activeAddress.trim(), password);
 
       setTimeout(() => {
         onClose();
@@ -131,6 +95,19 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
     } finally {
       setIsLoading(false);
       setLoadingAction(null);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    setError("");
+    setWalletLoading("disconnect");
+
+    try {
+      await disconnectWallet();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to disconnect wallet");
+    } finally {
+      setWalletLoading(null);
     }
   };
 
@@ -226,134 +203,88 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
         </button>
 
         {/* STEP 1 — Choose Wallet */}
-        {step === "wallet" && (
+        {!activeAddress && (
           <div style={{ animation: "fade-in-modal 0.3s ease" }}>
             <h2 className="font-display" style={{ fontSize: 22, fontWeight: 800, color: "#F0F0F0", textAlign: "center", margin: "0 0 8px 0", letterSpacing: "-0.02em" }}>
               Connect Wallet
             </h2>
             <p style={{ fontFamily: "Inter,sans-serif", fontSize: 14, color: "rgba(255,255,255,0.35)", textAlign: "center", marginBottom: 28, margin: "8px 0 28px 0" }}>
-              Select your Algorand wallet
+              Connect an Algorand wallet or xChain-compatible EVM wallet
             </p>
-
-            {/* Wallet cards */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {(["pera", "lute", "exodus"] as Wallet[]).map((wallet, i) => {
-                const config = walletConfig[wallet];
-                const isDisabled = wallet === "exodus";
-                return (
-                  <button
-                    key={wallet}
-                    onClick={() => handleWalletSelect(wallet)}
-                    disabled={isDisabled || walletLoading === wallet}
+            <div
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 18,
+                padding: 24,
+                display: "grid",
+                gap: 12,
+              }}
+            >
+              {walletCards.map((wallet) => (
+                <button
+                  key={wallet.key}
+                  onClick={() => handleWalletSelect(wallet.id, wallet.key)}
+                  disabled={walletLoading === wallet.key}
+                  style={{
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 14,
+                    padding: "16px 18px",
+                    cursor: walletLoading === wallet.key ? "wait" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 14,
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (walletLoading !== wallet.key) {
+                      e.currentTarget.style.borderColor = "rgba(0,255,209,0.25)";
+                      e.currentTarget.style.background = "rgba(0,255,209,0.03)";
+                      e.currentTarget.style.transform = "translateX(3px)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                    e.currentTarget.style.background = "rgba(255,255,255,0.03)";
+                    e.currentTarget.style.transform = "translateX(0)";
+                  }}
+                >
+                  <div
                     style={{
-                      background: "rgba(255,255,255,0.03)",
-                      border: `1px solid rgba(255,255,255,0.08)`,
-                      borderRadius: 14,
-                      padding: "16px 18px",
-                      cursor: isDisabled ? "default" : "pointer",
+                      width: 36,
+                      height: 36,
+                      borderRadius: "50%",
+                      background: `${wallet.color}1A`,
+                      border: `1px solid ${wallet.color}33`,
                       display: "flex",
                       alignItems: "center",
-                      gap: 14,
-                      opacity: isDisabled ? 0.45 : 1,
-                      transition: "all 0.2s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isDisabled) {
-                        e.currentTarget.style.borderColor = "rgba(0,255,209,0.25)";
-                        e.currentTarget.style.background = "rgba(0,255,209,0.03)";
-                        e.currentTarget.style.transform = "translateX(3px)";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isDisabled) {
-                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
-                        e.currentTarget.style.background = "rgba(255,255,255,0.03)";
-                        e.currentTarget.style.transform = "translateX(0)";
-                      }
+                      justifyContent: "center",
+                      flexShrink: 0,
                     }}
                   >
-                    {/* Circle icon */}
-                    <div
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: "50%",
-                        background: config.bgColor,
-                        border: `1px solid ${config.borderColor}`,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <span style={{ fontFamily: "Inter,sans-serif", fontSize: 14, fontWeight: 700, color: config.color }}>
-                        {wallet[0].toUpperCase()}
-                      </span>
+                    <span style={{ fontFamily: "Inter,sans-serif", fontSize: 14, fontWeight: 700, color: wallet.color }}>
+                      {wallet.label[0]}
+                    </span>
+                  </div>
+                  <div style={{ flex: 1, textAlign: "left" }}>
+                    <div style={{ fontFamily: "Inter,sans-serif", fontSize: 15, fontWeight: 500, color: "#F0F0F0" }}>
+                      {wallet.label}
                     </div>
-
-                    {/* Text */}
-                    <div style={{ flex: 1, textAlign: "left" }}>
-                      <div style={{ fontFamily: "Inter,sans-serif", fontSize: 15, fontWeight: 500, color: "#F0F0F0" }}>
-                        {config.label}
-                      </div>
-                      <div style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: "rgba(255,255,255,0.3)" }}>
-                        {config.subtitle}
-                      </div>
+                    <div style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: "rgba(255,255,255,0.3)" }}>
+                      {wallet.subtitle}
                     </div>
-
-                    {/* Arrow or Soon badge */}
-                    {walletLoading === wallet ? (
-                      <span style={{ color: "#00FFD1", fontSize: 12 }}>Connecting...</span>
-                    ) : isDisabled ? (
-                      <div
-                        style={{
-                          background: "rgba(255,183,71,0.1)",
-                          color: "#FFB347",
-                          border: "1px solid rgba(255,183,71,0.2)",
-                          borderRadius: 9999,
-                          fontFamily: "Inter,sans-serif",
-                          fontSize: 10,
-                          padding: "3px 8px",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        Soon
-                      </div>
-                    ) : (
-                      <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 18, transition: "color 0.2s ease" }}>
-                        →
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+                  </div>
+                  <span style={{ color: walletLoading === wallet.key ? wallet.color : "rgba(255,255,255,0.25)", fontSize: 12 }}>
+                    {walletLoading === wallet.key ? "Connecting..." : "→"}
+                  </span>
+                </button>
+              ))}
+              <p style={{ margin: "4px 0 0 0", textAlign: "center", fontFamily: "Inter,sans-serif", fontSize: 12, color: "rgba(255,255,255,0.35)", lineHeight: 1.6 }}>
+                Supported here: Pera, Defly, Lute, MetaMask, and other RainbowKit-backed EVM wallets.
+                {!hasWalletConnectConfig ? " Add NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID before production use." : ""}
+              </p>
             </div>
-
-            {/* Divider */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "20px 0", opacity: 0.5 }}>
-              <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.1)" }} />
-              <span style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: "rgba(255,255,255,0.1)" }}>
-                or
-              </span>
-              <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.1)" }} />
-            </div>
-
-            {/* Login link */}
-            <p style={{ fontFamily: "Inter,sans-serif", fontSize: 13, color: "rgba(255,255,255,0.3)", textAlign: "center", margin: 0 }}>
-              Already have a session?{" "}
-              <span
-                style={{ color: "#00FFD1", cursor: "pointer", textDecoration: "underline" }}
-                onClick={() => {
-                  if (!walletAddress) {
-                    setError("Connect a wallet first");
-                    return;
-                  }
-                  setStep("password");
-                }}
-              >
-                Login with address
-              </span>
-            </p>
             {error && (
               <div
                 style={{
@@ -374,28 +305,8 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
         )}
 
         {/* STEP 2 — Enter Password */}
-        {step === "password" && selectedWallet && (
+        {activeAddress && (
           <div style={{ animation: "fade-in-modal 0.3s ease" }}>
-            {/* Back button */}
-            <button
-              onClick={() => setStep("wallet")}
-              style={{
-                background: "transparent",
-                border: "none",
-                fontFamily: "Inter,sans-serif",
-                fontSize: 13,
-                color: "rgba(255,255,255,0.3)",
-                cursor: "pointer",
-                marginBottom: 20,
-                transition: "color 0.15s ease",
-                padding: 0,
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#F0F0F0")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.3)")}
-            >
-              ← Back
-            </button>
-
             {/* Wallet chip */}
             <div
               style={{
@@ -416,12 +327,12 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
                   width: 12,
                   height: 12,
                   borderRadius: "50%",
-                  background: walletConfig[selectedWallet].color,
-                  boxShadow: `0 0 8px ${walletConfig[selectedWallet].color}`,
+                  background: "#00FFD1",
+                  boxShadow: "0 0 8px #00FFD1",
                 }}
               />
               <span style={{ fontFamily: "monospace", fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-                {selectedWallet.toUpperCase()} · {truncateAddress(walletAddress)}
+                {String(activeWallet?.id || "wallet").toUpperCase()} · {truncateAddress(activeAddress)}
               </span>
             </div>
 
@@ -429,8 +340,41 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
               Enter Password
             </h2>
             <p style={{ fontFamily: "Inter,sans-serif", fontSize: 13, color: "rgba(255,255,255,0.35)", textAlign: "center", marginBottom: 24 }}>
-              New here? We'll create your account.
+              {isReady ? "New here? We'll create your account." : "Waiting for wallet session..."}
             </p>
+
+            <button
+              type="button"
+              onClick={handleDisconnect}
+              disabled={walletLoading === "disconnect" || isLoading}
+              style={{
+                width: "100%",
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.09)",
+                borderRadius: 12,
+                padding: "12px 14px",
+                color: "rgba(255,255,255,0.72)",
+                fontFamily: "Inter,sans-serif",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: walletLoading === "disconnect" || isLoading ? "not-allowed" : "pointer",
+                marginBottom: 18,
+                transition: "all 0.2s ease",
+                opacity: walletLoading === "disconnect" || isLoading ? 0.6 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (walletLoading !== "disconnect" && !isLoading) {
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)";
+                  e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)";
+                e.currentTarget.style.background = "rgba(255,255,255,0.03)";
+              }}
+            >
+              {walletLoading === "disconnect" ? "Disconnecting..." : "Disconnect wallet"}
+            </button>
 
             {/* Password input */}
             <div style={{ marginBottom: 20 }}>

@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { disconnectWallet, getStoredWalletType, truncateAddress } from "@/src/utils/walletService";
+import { disconnectWallet, truncateAddress } from "@/src/utils/walletService";
 import { getWalletAddress, logout } from "@/src/utils/authService";
 
 const NAV = [
@@ -81,10 +81,7 @@ export default function Sidebar({ active, onNav }: SidebarProps) {
 
   const handleDisconnect = async () => {
     try {
-      const walletType = getStoredWalletType();
-      if (walletType) {
-        await disconnectWallet(walletType);
-      }
+      await disconnectWallet();
     } catch {
       // continue with logout even if wallet SDK disconnect fails
     }
