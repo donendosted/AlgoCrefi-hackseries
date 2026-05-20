@@ -17,6 +17,9 @@ importers:
       '@d13co/algo-x-evm-ui':
         specifier: latest
         version: 0.0.16(@algorandfoundation/algokit-utils@9.2.0(algosdk@3.5.2))(@allbridge/bridge-core-sdk@3.31.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.25.76))(@tanstack/react-query@5.100.10(react@19.2.5))(abel-ghost-sdk@0.0.5(@algorandfoundation/algokit-utils@9.2.0(algosdk@3.5.2))(algosdk@3.5.2))(algosdk@3.5.2)(react@19.2.5)
+      '@netlify/plugin-nextjs':
+        specifier: ^5.15.11
+        version: 5.15.11
       '@perawallet/connect':
         specifier: ^1.5.2
         version: 1.5.2(algosdk@3.5.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6)
@@ -700,6 +703,10 @@ packages:
 
   '@native-to-anchor/buffer-layout@0.1.0':
     resolution: {integrity: sha512-7Ykz9KRAm53XqHj5blDUKPX+OXAPO4GZBW4zJhfHGIAbzmqsUFh9kMqR66Bak3mp6wyv1OVTwSr8ZGHKswPxDg==}
+
+  '@netlify/plugin-nextjs@5.15.11':
+    resolution: {integrity: sha512-cx7yoJFYDBFRecGqJaEUuvnHvU+vs9ISn7DUXyijPheaqtbyRy4+z7Mjre9swEJ19ItVeFhuGuXUkl6X5nfJeA==}
+    engines: {node: '>=18.0.0'}
 
   '@next/env@15.5.15':
     resolution: {integrity: sha512-vcmyu5/MyFzN7CdqRHO3uHO44p/QPCZkuTUXroeUmhNP8bL5PHFEhik22JUazt+CDDoD6EpBYRCaS2pISL+/hg==}
@@ -4615,6 +4622,8 @@ snapshots:
       - encoding
       - typescript
       - utf-8-validate
+
+  '@netlify/plugin-nextjs@5.15.11': {}
 
   '@next/env@15.5.15': {}
 
