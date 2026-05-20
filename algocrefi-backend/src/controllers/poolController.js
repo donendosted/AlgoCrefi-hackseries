@@ -1,7 +1,19 @@
-﻿const Deposit = require("../models/depositModel");
+const Deposit = require("../models/depositModel");
 const User = require("../models/userModel");
 const { verifyTransaction } = require("../services/verifyService");
-const { submitSignedAppCall, submitSignedDepositGroup, getPoolInfo, getUserShares, getTotalShares, getBackendAddress } = require("../services/appService");
+const {
+  submitSignedAppCall,
+  submitSignedDepositGroup,
+  getPoolInfo,
+  getUserShares,
+  getTotalShares,
+  getBackendAddress,
+  getAccountOptInStatus,
+} = require("../services/appService");
+const {
+  persistPoolTvlSnapshot,
+  getStoredPoolTvlHistory,
+} = require("../services/poolHistoryService");
 
 function safeStringify(obj) {
   return JSON.parse(JSON.stringify(obj, (key, value) => 
@@ -11,6 +23,17 @@ function safeStringify(obj) {
 
 function getAppId() {
   return Number(process.env.POOL_APP_ID || process.env.LENDING_APP_ID || process.env.APP_ID);
+}
+
+function getAppAddress() {
+  const algosdk = require("algosdk");
+  return algosdk.getApplicationAddress(getAppId()).toString();
+}
+
+function parseUnix(value, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.floor(n);
 }
 
 exports.deposit = async (req, res) => {
@@ -120,6 +143,14 @@ exports.optIn = async (req, res) => {
       1
     );
 
+    console.log("pool opt-in submitted", {
+      userId: user._id.toString(),
+      walletAddress: user.walletAddress,
+      appId: getAppId(),
+      appAddress: getAppAddress(),
+      appTxId,
+    });
+
     res.json({
       success: true,
       message: "Opt-in submitted successfully",
@@ -179,6 +210,16 @@ exports.getPoolInfo = async (req, res) => {
     const poolBalance = await getPoolInfo();
     const totalShares = await getTotalShares();
     const sharePrice = totalShares > 0 ? Math.floor(poolBalance / totalShares) : 1;
+    const snapshot = {
+      appId: getAppId(),
+      poolBalanceMicro: Number(poolBalance || 0),
+      poolBalanceAlgo: Number(poolBalance || 0) / 1_000_000,
+      totalShares: Number(totalShares || 0),
+      sharePriceMicroAlgo: Number(sharePrice || 1),
+    };
+    persistPoolTvlSnapshot(snapshot).catch((err) => {
+      console.warn("Pool TVL persistence failed:", err?.message || err);
+    });
 
     res.json({
       success: true,
@@ -187,11 +228,39 @@ exports.getPoolInfo = async (req, res) => {
         totalShares: totalShares,
         sharePrice: sharePrice,
       },
+      config: {
+        appId: getAppId(),
+        appAddress: getAppAddress(),
+      },
     });
 
   } catch (err) {
     console.error(err);
     res.json({ success: false, error: err.message });
+  }
+};
+
+exports.getPoolHistory = async (req, res) => {
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const toTs = parseUnix(req.query.to, now);
+    const fromTs = parseUnix(req.query.from, now - 7 * 24 * 3600);
+    const limit = parseUnix(req.query.limit, 1500);
+    const appId = parseUnix(req.query.appId, getAppId());
+
+    if (toTs <= fromTs) {
+      return res.status(400).json({ success: false, error: "Invalid time range" });
+    }
+
+    const points = await getStoredPoolTvlHistory({ appId, fromTs, toTs, limit });
+    return res.json({
+      success: true,
+      appId,
+      points,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.json({ success: false, error: err.message });
   }
 };
 
@@ -205,6 +274,7 @@ exports.getUserInfo = async (req, res) => {
     }
 
     const userShares = await getUserShares(user.walletAddress);
+    const optedIn = await getAccountOptInStatus(user.walletAddress);
     const poolBalance = await getPoolInfo();
     const totalShares = await getTotalShares();
     const algoValue = totalShares > 0
@@ -217,7 +287,12 @@ exports.getUserInfo = async (req, res) => {
         id: user._id.toString(),
         walletAddress: user.walletAddress,
         shares: userShares,
+        optedIn,
         algoValue,
+      },
+      config: {
+        appId: getAppId(),
+        appAddress: getAppAddress(),
       },
     });
 
@@ -226,3 +301,4 @@ exports.getUserInfo = async (req, res) => {
     res.json({ success: false, error: err.message });
   }
 };
+

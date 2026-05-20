@@ -26,6 +26,17 @@ export type PoolSnapshot = {
   quoteSymbol: string;
   usdcPerAlgo: number;
   round: number;
+  liquidityUsd?: number;
+  volume24hUsd?: number;
+  priceChange24hPct?: number;
+};
+
+export type PoolHistoryPoint = {
+  time: number;
+  price: number;
+  algoReserve: number;
+  quoteReserve: number;
+  round: number;
 };
 
 const INTERVAL_SECONDS: Record<string, number> = {
@@ -92,4 +103,39 @@ export async function fetchPoolSnapshot(): Promise<PoolSnapshot> {
   }
 
   return response;
+}
+
+export async function fetchPoolHistory({
+  pair = "ALGO_USDC",
+  fromTs,
+  toTs,
+  limit = 12000,
+}: {
+  pair?: string;
+  fromTs?: number;
+  toTs?: number;
+  limit?: number;
+} = {}): Promise<PoolHistoryPoint[]> {
+  const now = Math.floor(Date.now() / 1000);
+  const from = Number.isFinite(Number(fromTs)) ? Number(fromTs) : now - 24 * 3600;
+  const to = Number.isFinite(Number(toTs)) ? Number(toTs) : now;
+  const cappedLimit = Math.min(Math.max(Number(limit) || 12000, 1), 25000);
+
+  const response = await apiRequest<{ points?: PoolHistoryPoint[] }>(
+    `/api/market/pool-history?pair=${encodeURIComponent(pair)}&from=${from}&to=${to}&limit=${cappedLimit}`,
+    { auth: false }
+  );
+
+  if (!Array.isArray(response?.points)) {
+    return [];
+  }
+
+  return response.points.filter(
+    (p) =>
+      Number.isFinite(Number(p.time)) &&
+      Number.isFinite(Number(p.price)) &&
+      Number(p.price) > 0 &&
+      Number.isFinite(Number(p.algoReserve)) &&
+      Number.isFinite(Number(p.quoteReserve))
+  );
 }

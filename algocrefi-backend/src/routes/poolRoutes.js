@@ -7,6 +7,7 @@ router.post("/deposit", verifyToken, poolController.deposit);
 router.post("/opt-in", verifyToken, poolController.optIn);
 router.post("/withdraw", verifyToken, poolController.withdraw);
 router.get("/pool-info", poolController.getPoolInfo);
+router.get("/pool-history", poolController.getPoolHistory);
 router.get("/user-info", verifyToken, poolController.getUserInfo);
 
 module.exports = router;

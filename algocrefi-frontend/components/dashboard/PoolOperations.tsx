@@ -1,17 +1,18 @@
 "use client";
 import { useRef, useState } from "react";
-import type { PoolInfo, UserInfo } from "@/lib/mockData";
+import type { DashboardPool, DashboardUser } from "@/src/types/dashboard";
 import { useToast } from "./toastContext";
 import { Buffer } from "buffer";
 import { getWalletAddress } from "@/src/utils/authService";
 import { buildDepositTxGroup, buildOptInTx, buildWithdrawTx } from "@/src/utils/algoTxBuilder";
 import { algoToMicroAlgo, estimateAlgoFromShares, estimateShares, submitDeposit, submitOptIn, submitWithdraw } from "@/src/utils/poolService";
-import { getStoredWalletType, signTransactions } from "@/src/utils/walletService";
+import { signTransactions } from "@/src/utils/walletService";
 
 interface Props {
-  pool: PoolInfo;
-  user: UserInfo;
+  pool: DashboardPool;
+  user: DashboardUser;
   onRefresh: () => Promise<void>;
+  onOptimisticPoolBalance?: (nextPoolBalanceMicro: number) => void;
 }
 
 function RippleButton({
@@ -103,7 +104,7 @@ function RippleButton({
   );
 }
 
-export default function PoolOperations({ pool, user, onRefresh }: Props) {
+export default function PoolOperations({ pool, user, onRefresh, onOptimisticPoolBalance }: Props) {
   const [tab, setTab] = useState<"deposit" | "withdraw">("deposit");
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
@@ -126,13 +127,21 @@ export default function PoolOperations({ pool, user, onRefresh }: Props) {
     addToast({ type: "error", title: "Action failed", message });
   };
 
+  const emitOptimisticBalance = (nextPoolBalanceMicro: number) => {
+    onOptimisticPoolBalance?.(nextPoolBalanceMicro);
+    window.dispatchEvent(
+      new CustomEvent("algocrefi:pool-balance-optimistic", {
+        detail: { poolBalanceMicro: nextPoolBalanceMicro },
+      })
+    );
+  };
+
   const getWalletSession = () => {
     const walletAddress = getWalletAddress();
-    const walletType = getStoredWalletType();
-    if (!walletAddress || !walletType) {
+    if (!walletAddress) {
       throw new Error("Connect your wallet first");
     }
-    return { walletAddress, walletType };
+    return { walletAddress };
   };
 
   const handleDeposit = async () => {
@@ -149,18 +158,22 @@ export default function PoolOperations({ pool, user, onRefresh }: Props) {
     }
 
     try {
-      const { walletAddress, walletType } = getWalletSession();
+      const { walletAddress } = getWalletSession();
 
-      if (user.shares === 0) {
+      if (!user.optedIn) {
         setLoading(true);
         setLoadingLabel("Signing opt-in...");
         try {
+          console.log("[pool] opt-in: building tx");
           const optInTx = await buildOptInTx(walletAddress);
-          const [signedOptIn] = await signTransactions([optInTx], walletType);
+          console.log("[pool] opt-in: signing tx");
+          const [signedOptIn] = await signTransactions([optInTx]);
           const optInBase64 = encodeSignedTx(signedOptIn);
 
           setLoadingLabel("Submitting opt-in...");
+          console.log("[pool] opt-in: submitting tx");
           await submitOptIn(optInBase64);
+          console.log("[pool] opt-in: confirmed");
           addToast({ type: "success", title: "Opt-in confirmed", message: "Wallet opted into pool app" });
         } catch (optInError: unknown) {
           const optInMsg = optInError instanceof Error ? optInError.message : "Opt-in failed";
@@ -180,15 +193,20 @@ export default function PoolOperations({ pool, user, onRefresh }: Props) {
       setLoading(true);
       setLoadingLabel("Building tx...");
 
+      console.log("[pool] deposit: building group");
       const [paymentTx, depositTx] = await buildDepositTxGroup(walletAddress, amountMicroAlgo);
 
       setLoadingLabel("Sign in wallet...");
-      const signed = await signTransactions([paymentTx, depositTx], walletType);
+      console.log("[pool] deposit: signing group");
+      const signed = await signTransactions([paymentTx, depositTx]);
       const [base64Payment, base64Deposit] = signed.map(encodeSignedTx);
 
       setLoadingLabel("Submitting...");
+      console.log("[pool] deposit: submitting group");
       const res = await submitDeposit([base64Payment, base64Deposit]) as { appTxId?: string; message?: string };
 
+      console.log("[pool] deposit: confirmed", res);
+      emitOptimisticBalance(pool.balance + amountMicroAlgo);
       addToast({
         type: "success",
         title: "Deposit submitted!",
@@ -196,12 +214,15 @@ export default function PoolOperations({ pool, user, onRefresh }: Props) {
         txId: res.appTxId,
       });
       setAmount("");
+      console.log("[pool] deposit: refreshing data");
       await onRefresh();
+      console.log("[pool] deposit: refresh complete");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Transaction failed";
       if (message.toLowerCase().includes("already in ledger")) {
         addToast({ type: "success", title: "Deposit likely confirmed", message });
         setAmount("");
+        console.log("[pool] deposit: already in ledger, refreshing data");
         await onRefresh();
       } else {
         failToast(error);
@@ -224,19 +245,21 @@ export default function PoolOperations({ pool, user, onRefresh }: Props) {
     }
 
     try {
-      const { walletAddress, walletType } = getWalletSession();
+      const { walletAddress } = getWalletSession();
       setLoading(true);
       setLoadingLabel("Building tx...");
 
       const withdrawTx = await buildWithdrawTx(walletAddress, shares);
 
       setLoadingLabel("Sign in wallet...");
-      const signed = await signTransactions([withdrawTx], walletType);
+      const signed = await signTransactions([withdrawTx]);
       const base64Withdraw = encodeSignedTx(signed[0]);
 
       setLoadingLabel("Submitting...");
       const res = await submitWithdraw(shares, base64Withdraw) as { appTxId?: string; message?: string };
 
+      const nextWithdrawBalanceMicro = Math.max(0, pool.balance - Math.round((algoEstimate ?? 0) * 1_000_000));
+      emitOptimisticBalance(nextWithdrawBalanceMicro);
       addToast({
         type: "success",
         title: "Withdrawal submitted!",

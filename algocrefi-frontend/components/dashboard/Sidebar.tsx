@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { disconnectWallet, getStoredWalletType, truncateAddress } from "@/src/utils/walletService";
+import { disconnectWallet, truncateAddress } from "@/src/utils/walletService";
 import { getWalletAddress, logout } from "@/src/utils/authService";
 
 const NAV = [
@@ -68,7 +68,7 @@ interface SidebarProps {
 
 export default function Sidebar({ active, onNav }: SidebarProps) {
   const [hovered, setHovered] = useState<string | null>(null);
-  const [txCount, setTxCount] = useState(2847);
+  const [txCount] = useState<number | null>(null);
   const [mounted, setMounted] = useState(false);
   const [walletAddress, setWalletAddress] = useState("ALGO3X...F9KT");
 
@@ -81,10 +81,7 @@ export default function Sidebar({ active, onNav }: SidebarProps) {
 
   const handleDisconnect = async () => {
     try {
-      const walletType = getStoredWalletType();
-      if (walletType) {
-        await disconnectWallet(walletType);
-      }
+      await disconnectWallet();
     } catch {
       // continue with logout even if wallet SDK disconnect fails
     }
@@ -93,8 +90,6 @@ export default function Sidebar({ active, onNav }: SidebarProps) {
 
   useEffect(() => {
     setMounted(true);
-    const t = setInterval(() => setTxCount((p) => p + Math.floor(Math.random() * 3)), 4200);
-    return () => clearInterval(t);
   }, []);
 
   return (
@@ -240,7 +235,7 @@ export default function Sidebar({ active, onNav }: SidebarProps) {
             SESSION_TXS
           </div>
           <div style={{ fontFamily: "monospace", fontSize: 14, color: "rgba(0,255,209,0.7)", fontWeight: 600, letterSpacing: "0.04em" }}>
-            {txCount.toLocaleString()}
+            {txCount == null ? "--" : txCount.toLocaleString()}
           </div>
         </div>
 

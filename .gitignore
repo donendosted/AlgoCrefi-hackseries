@@ -43,3 +43,5 @@ coverage/
 .cache/
 .parcel-cache/
 .eslintcache
+.codex
+.claude

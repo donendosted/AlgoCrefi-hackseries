@@ -1,7 +1,7 @@
 import algosdk from "algosdk";
+import { getPoolConfig } from "./poolService";
+import { getLoanInfoPublic } from "./loanService";
 
-const APP_ID = 758675636;
-const APP_ACCOUNT = "DBYOKAGRPAPK6UPNTXB4WAIROK7KRXETIBAWAF4VVI6CPATIFHXM22INLM";
 const USDC_ASSET_ID = 10458941;
 const algodClient = new algosdk.Algodv2("", "https://testnet-api.algonode.cloud", 443);
 
@@ -17,29 +17,67 @@ function withFlatFee(params: Awaited<ReturnType<typeof getSuggestedParams>>, fee
   };
 }
 
+async function getLoanAppConfig() {
+  const info = await getLoanInfoPublic();
+  const lendingAppId = Number(info.lendingAppId || 0);
+  const auraAppId = Number(info.auraAppId || lendingAppId || 0);
+
+  if (!lendingAppId) {
+    throw new Error("Lending app configuration unavailable");
+  }
+
+  return { lendingAppId, auraAppId };
+}
+
 export async function buildOptInTx(walletAddress: string) {
+  const { appId } = await getPoolConfig();
+  const optInMethod = algosdk.ABIMethod.fromSignature("opt_in()void");
   return algosdk.makeApplicationOptInTxnFromObject({
     sender: walletAddress,
-    appIndex: APP_ID,
+    appIndex: appId,
+    appArgs: [optInMethod.getSelector()],
+    suggestedParams: await getSuggestedParams(),
+  });
+}
+
+export async function buildLendingOptInTx(walletAddress: string) {
+  const { lendingAppId } = await getLoanAppConfig();
+  const optInMethod = algosdk.ABIMethod.fromSignature("opt_in()void");
+  return algosdk.makeApplicationOptInTxnFromObject({
+    sender: walletAddress,
+    appIndex: lendingAppId,
+    appArgs: [optInMethod.getSelector()],
+    suggestedParams: await getSuggestedParams(),
+  });
+}
+
+export async function buildAuraOptInTx(walletAddress: string) {
+  const { auraAppId } = await getLoanAppConfig();
+  const optInMethod = algosdk.ABIMethod.fromSignature("opt_in()void");
+  return algosdk.makeApplicationOptInTxnFromObject({
+    sender: walletAddress,
+    appIndex: auraAppId,
+    appArgs: [optInMethod.getSelector()],
     suggestedParams: await getSuggestedParams(),
   });
 }
 
 export async function buildDepositTxGroup(walletAddress: string, amountMicroAlgo: number) {
+  const { appId, appAddress } = await getPoolConfig();
   const suggestedParams = await getSuggestedParams();
   const depositMethod = algosdk.ABIMethod.fromSignature("deposit(uint64)uint64");
   const paymentTxnIndex = 0;
 
   const paymentTx = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
     sender: walletAddress,
-    receiver: APP_ACCOUNT,
+    receiver: appAddress,
     amount: amountMicroAlgo,
     suggestedParams,
   });
 
   const depositAppCallTx = algosdk.makeApplicationNoOpTxnFromObject({
     sender: walletAddress,
-    appIndex: APP_ID,
+    appIndex: appId,
     appArgs: [depositMethod.getSelector(), algosdk.encodeUint64(paymentTxnIndex)],
     suggestedParams,
   });
@@ -49,11 +87,12 @@ export async function buildDepositTxGroup(walletAddress: string, amountMicroAlgo
 }
 
 export async function buildWithdrawTx(walletAddress: string, shares: number) {
+  const { appId } = await getPoolConfig();
   const withdrawMethod = algosdk.ABIMethod.fromSignature("withdraw(uint64)uint64");
   const suggestedParams = await getSuggestedParams();
   return algosdk.makeApplicationNoOpTxnFromObject({
     sender: walletAddress,
-    appIndex: APP_ID,
+    appIndex: appId,
     appArgs: [withdrawMethod.getSelector(), algosdk.encodeUint64(shares)],
     suggestedParams: withFlatFee(suggestedParams, 3000),
   });
@@ -65,6 +104,7 @@ export async function buildCollateralLoanGroup(
   daysToRepay: number,
   requiredUsdcUnits: number
 ) {
+  const { appId, appAddress } = await getPoolConfig();
   const suggestedParams = await getSuggestedParams();
   const requestCollateralLoanMethod = algosdk.ABIMethod.fromSignature(
     "request_collateral_loan(uint64,uint64,uint64,uint64)uint64"
@@ -73,7 +113,7 @@ export async function buildCollateralLoanGroup(
 
   const usdcTx = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
     sender: walletAddress,
-    receiver: APP_ACCOUNT,
+    receiver: appAddress,
     assetIndex: USDC_ASSET_ID,
     amount: requiredUsdcUnits,
     suggestedParams,
@@ -81,7 +121,7 @@ export async function buildCollateralLoanGroup(
 
   const appCallTx = algosdk.makeApplicationNoOpTxnFromObject({
     sender: walletAddress,
-    appIndex: APP_ID,
+    appIndex: appId,
     appArgs: [
       requestCollateralLoanMethod.getSelector(),
       algosdk.encodeUint64(algoAmountMicro),
@@ -98,11 +138,12 @@ export async function buildCollateralLoanGroup(
 }
 
 export async function buildUnsecuredLoanTx(walletAddress: string, algoAmountMicro: number, daysToRepay: number) {
+  const { appId } = await getPoolConfig();
   const method = algosdk.ABIMethod.fromSignature("request_unsecured_loan(uint64,uint64)uint64");
   const suggestedParams = await getSuggestedParams();
   return algosdk.makeApplicationNoOpTxnFromObject({
     sender: walletAddress,
-    appIndex: APP_ID,
+    appIndex: appId,
     appArgs: [
       method.getSelector(),
       algosdk.encodeUint64(algoAmountMicro),
@@ -113,19 +154,20 @@ export async function buildUnsecuredLoanTx(walletAddress: string, algoAmountMicr
 }
 
 export async function buildRepayGroup(walletAddress: string, dueAmountMicro: number) {
+  const { appId, appAddress } = await getPoolConfig();
   const suggestedParams = await getSuggestedParams();
   const repayMethod = algosdk.ABIMethod.fromSignature("repay(uint64)uint64");
   const paymentTxnIndex = 0;
   const paymentTx = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
     sender: walletAddress,
-    receiver: APP_ACCOUNT,
+    receiver: appAddress,
     amount: dueAmountMicro,
     suggestedParams,
   });
 
   const repayTx = algosdk.makeApplicationNoOpTxnFromObject({
     sender: walletAddress,
-    appIndex: APP_ID,
+    appIndex: appId,
     appArgs: [repayMethod.getSelector(), algosdk.encodeUint64(paymentTxnIndex)],
     foreignAssets: [USDC_ASSET_ID],
     suggestedParams: withFlatFee(suggestedParams, 3000),
@@ -135,4 +177,4 @@ export async function buildRepayGroup(walletAddress: string, dueAmountMicro: num
   return [paymentTx, repayTx];
 }
 
-export { APP_ID, APP_ACCOUNT, USDC_ASSET_ID, algodClient };
+export { USDC_ASSET_ID, algodClient };

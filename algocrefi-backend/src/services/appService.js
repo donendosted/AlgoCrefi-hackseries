@@ -1,5 +1,6 @@
 const algosdk = require("algosdk");
 require("dotenv").config();
+const { decodeSignedTxnSafe } = require("./signedTxnUtils");
 
 const algodClient = new algosdk.Algodv2(
   process.env.ALGOD_TOKEN || "",
@@ -105,28 +106,32 @@ async function callPoolWithdraw(shares) {
 
 async function submitSignedAppCall(signedTxnBase64, expectedSender, expectedOnComplete) {
   const appId = getAppId();
-  const signedBytes = Buffer.from(signedTxnBase64, "base64");
-  const decoded = algosdk.decodeSignedTransaction(signedBytes);
+  const { raw: signedBytes, txn, decodeError } = decodeSignedTxnSafe(signedTxnBase64, "signed app call");
+  if (decodeError) {
+    console.warn("submitSignedAppCall: strict signed decode failed, using txn-map fallback", {
+      reason: decodeError.message,
+    });
+  }
 
-  if (!decoded || !decoded.txn) {
+  if (!txn) {
     throw new Error("Invalid signed transaction");
   }
 
-  const sender = decoded.txn.sender.toString();
+  const sender = txn.sender.toString();
   if (expectedSender && sender !== expectedSender) {
     throw new Error("Signed transaction sender mismatch");
   }
 
-  if (decoded.txn.type !== "appl") {
+  if (txn.type !== "appl") {
     throw new Error("Signed transaction must be app call");
   }
 
-  if (Number(decoded.txn.applicationCall?.appIndex ?? 0) !== appId) {
+  if (Number(txn.applicationCall?.appIndex ?? 0) !== appId) {
     throw new Error("Signed transaction app id mismatch");
   }
 
   if (expectedOnComplete !== undefined) {
-    const onComplete = Number(decoded.txn.applicationCall?.onComplete ?? -1);
+    const onComplete = Number(txn.applicationCall?.onComplete ?? -1);
     if (onComplete !== Number(expectedOnComplete)) {
       throw new Error("Signed transaction onComplete mismatch");
     }
@@ -141,16 +146,37 @@ async function submitSignedAppCall(signedTxnBase64, expectedSender, expectedOnCo
     }
   }
 
-  const response = await algodClient.sendRawTransaction(signedBytes).do();
-  const txId = response.txid;
-  await algosdk.waitForConfirmation(algodClient, txId, 20);
-  return txId;
+  try {
+    const response = await algodClient.sendRawTransaction(signedBytes).do();
+    const txId = response.txid;
+    await algosdk.waitForConfirmation(algodClient, txId, 20);
+    return txId;
+  } catch (err) {
+    const msg = String(err?.message || "");
+    if (Number(expectedOnComplete) === 1 && msg.includes("already opted in")) {
+      return "already-opted-in";
+    }
+    console.error("submitSignedAppCall rejected", {
+      appId,
+      sender,
+      expectedOnComplete,
+      txType: txn.type,
+      appIndex: Number(txn.applicationCall?.appIndex ?? 0),
+      onComplete: Number(txn.applicationCall?.onComplete ?? -1),
+      appArgsLength: txn.applicationCall?.appArgs?.length ?? 0,
+    });
+    throw err;
+  }
 }
 
 function decodeSignedTxn(base64) {
-  const raw = Buffer.from(base64, "base64");
-  const decoded = algosdk.decodeSignedTransaction(raw);
-  return { raw, decoded };
+  const { raw, txn, decodeError } = decodeSignedTxnSafe(base64, "signed group transaction");
+  if (decodeError) {
+    console.warn("decodeSignedTxn: strict signed decode failed, using txn-map fallback", {
+      reason: decodeError.message,
+    });
+  }
+  return { raw, txn };
 }
 
 function decodeUint64Arg(argBytes) {
@@ -168,7 +194,7 @@ async function submitSignedDepositGroup(signedGroupTxs, expectedSender) {
   const decodedGroup = signedGroupTxs.map((tx) => decodeSignedTxn(tx));
 
   const appCallIdx = decodedGroup.findIndex((item) => {
-    const txn = item.decoded?.txn;
+    const txn = item.txn;
     const appCall = txn?.applicationCall;
     const appArgs = appCall?.appArgs || [];
     const methodSelector = appArgs[0] ? toHex(appArgs[0]) : "";
@@ -186,7 +212,7 @@ async function submitSignedDepositGroup(signedGroupTxs, expectedSender) {
     throw new Error("Deposit app call not found in signed group");
   }
 
-  const appCallTxn = decodedGroup[appCallIdx].decoded.txn;
+  const appCallTxn = decodedGroup[appCallIdx].txn;
   const appArgs = appCallTxn.applicationCall?.appArgs || [];
   if (appArgs.length < 2) {
     throw new Error("Invalid deposit app args");
@@ -197,7 +223,7 @@ async function submitSignedDepositGroup(signedGroupTxs, expectedSender) {
     throw new Error("Invalid deposit payment txn index");
   }
 
-  const paymentTxn = decodedGroup[paymentTxnIndex].decoded?.txn;
+  const paymentTxn = decodedGroup[paymentTxnIndex].txn;
   if (!paymentTxn || paymentTxn.type !== "pay") {
     throw new Error("Referenced deposit payment txn is invalid");
   }
@@ -237,6 +263,11 @@ async function checkAccountOptedIn(address, appId) {
     }
     throw err;
   }
+}
+
+async function getAccountOptInStatus(address) {
+  const appId = getAppId();
+  return checkAccountOptedIn(address, appId);
 }
 
 async function getPoolInfo() {
@@ -286,6 +317,8 @@ module.exports = {
   getPoolInfo,
   getUserShares,
   getTotalShares,
+  getAppId,
   getAccount,
   getBackendAddress,
+  getAccountOptInStatus,
 };

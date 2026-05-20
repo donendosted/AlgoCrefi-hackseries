@@ -2,25 +2,30 @@
 
 import { useEffect, useState } from "react";
 import { Buffer } from "buffer";
-import type { UserInfo } from "@/lib/mockData";
+import type { DashboardUser } from "@/src/types/dashboard";
 import { useToast } from "./toastContext";
 import { getWalletAddress } from "@/src/utils/authService";
-import { buildCollateralLoanGroup, buildRepayGroup, buildUnsecuredLoanTx } from "@/src/utils/algoTxBuilder";
+import { buildAuraOptInTx, buildCollateralLoanGroup, buildLendingOptInTx, buildRepayGroup, buildUnsecuredLoanTx } from "@/src/utils/algoTxBuilder";
 import { algoToMicroAlgo } from "@/src/utils/poolService";
 import {
   formatDueDate,
   getCollateralQuote,
+  getLoanInfoPublic,
   isLoanOverdue,
+  submitAuraOptIn,
   submitCollateralLoan,
+  submitLendingOptIn,
   submitRepay,
   submitUnsecuredLoan,
   usdcToDisplay,
 } from "@/src/utils/loanService";
-import { getStoredWalletType, signTransactions } from "@/src/utils/walletService";
+import { signTransactions } from "@/src/utils/walletService";
 
 interface Props {
-  user: UserInfo;
+  user: DashboardUser;
   lending: {
+    optedIn: boolean;
+    auraOptedIn: boolean;
     activeLoan: number;
     dueAmount: number;
     dueTs: number;
@@ -34,6 +39,35 @@ interface Props {
 }
 
 type LoanMode = "none" | "collateral" | "unsecured" | "repay";
+
+function isAlreadyOptedInError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("already opted in") ||
+    normalized.includes("already-opted-in") ||
+    normalized.includes("has already opted in") ||
+    normalized.includes("already in ledger")
+  );
+}
+
+function isMissingLocalStateError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("unavailable local state") ||
+    normalized.includes("app_local_get_ex") ||
+    normalized.includes("has not opted in")
+  );
+}
+
+function normalizeLoanActionError(error: unknown) {
+  const message = error instanceof Error ? error.message : "Unknown error";
+  if (isMissingLocalStateError(error)) {
+    return "Wallet is not opted into lending state yet. Please complete lending opt-in and retry.";
+  }
+  return message;
+}
 
 export default function CreditStatus({ user, lending, error, onRefresh }: Props) {
   const [arcOffset, setArcOffset] = useState<number>(0);
@@ -59,6 +93,10 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
   const overdue = isLoanOverdue(lending.dueTs);
   const dueDate = lending.dueTs > 0 ? formatDueDate(lending.dueTs) : null;
   const unsecuredLimitAlgo = lending.unsecuredCreditLimitMicroAlgo / 1_000_000;
+  const activeLoanAmountMicro = lending.dueAmount > 0 ? lending.dueAmount : 0;
+  const displayError = error && isMissingLocalStateError(error)
+    ? "Wallet is not opted into lending yet. Complete lending opt-in once, then retry."
+    : error;
 
   useEffect(() => {
     const t = setTimeout(() => setArcOffset(targetOffset), 300);
@@ -99,14 +137,72 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
 
   const getWalletSession = () => {
     const walletAddress = getWalletAddress();
-    const walletType = getStoredWalletType();
-    if (!walletAddress || !walletType) {
+    if (!walletAddress) {
       throw new Error("Connect wallet first");
     }
-    return { walletAddress, walletType };
+    return { walletAddress };
   };
 
   const encodeSignedTx = (signedTx: Uint8Array) => Buffer.from(signedTx).toString("base64");
+
+  const ensureLoanOptIns = async (walletAddress: string) => {
+    const needsLendingOptIn = !lending.optedIn;
+    const maybeNeedsAuraOptIn = !lending.auraOptedIn;
+
+    if (!needsLendingOptIn && !maybeNeedsAuraOptIn) {
+      return;
+    }
+
+    const info = await getLoanInfoPublic();
+    const lendingAppId = Number(info.lendingAppId || 0);
+    const auraAppId = Number(info.auraAppId || lendingAppId || 0);
+
+    if (!lendingAppId) {
+      throw new Error("Lending app configuration unavailable");
+    }
+
+    if (needsLendingOptIn) {
+      setActionLabel("Sign lending opt-in...");
+      const lendingOptInTx = await buildLendingOptInTx(walletAddress);
+      const [signedLendingOptIn] = await signTransactions([lendingOptInTx]);
+
+      setActionLabel("Submitting lending opt-in...");
+      try {
+        const result = await submitLendingOptIn(encodeSignedTx(signedLendingOptIn)) as { appTxId?: string };
+        addToast({
+          type: "success",
+          title: "Lending opt-in confirmed",
+          txId: result.appTxId,
+          message: result.appTxId ? `Tx: ${result.appTxId}` : undefined,
+        });
+      } catch (optInError: unknown) {
+        if (!isAlreadyOptedInError(optInError)) {
+          throw optInError;
+        }
+      }
+    }
+
+    if (maybeNeedsAuraOptIn && auraAppId && auraAppId !== lendingAppId) {
+      setActionLabel("Sign aura opt-in...");
+      const auraOptInTx = await buildAuraOptInTx(walletAddress);
+      const [signedAuraOptIn] = await signTransactions([auraOptInTx]);
+
+      setActionLabel("Submitting aura opt-in...");
+      try {
+        const result = await submitAuraOptIn(encodeSignedTx(signedAuraOptIn)) as { appTxId?: string };
+        addToast({
+          type: "success",
+          title: "Aura opt-in confirmed",
+          txId: result.appTxId,
+          message: result.appTxId ? `Tx: ${result.appTxId}` : undefined,
+        });
+      } catch (optInError: unknown) {
+        if (!isAlreadyOptedInError(optInError)) {
+          throw optInError;
+        }
+      }
+    }
+  };
 
   const handleCollateralRequest = async () => {
     try {
@@ -116,13 +212,14 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
       if (!amount || amount <= 0) throw new Error("Enter a valid ALGO amount");
       if (!quote?.requiredCollateralUsdcUnits) throw new Error("Quote not ready");
 
-      const { walletAddress, walletType } = getWalletSession();
+      const { walletAddress } = getWalletSession();
       setActionLoading(true);
+      await ensureLoanOptIns(walletAddress);
       setActionLabel("Building tx...");
       const [usdcTx, appCallTx] = await buildCollateralLoanGroup(walletAddress, algoAmountMicro, days, quote.requiredCollateralUsdcUnits);
 
       setActionLabel("Sign in wallet...");
-      const signed = await signTransactions([usdcTx, appCallTx], walletType);
+      const signed = await signTransactions([usdcTx, appCallTx]);
 
       setActionLabel("Submitting...");
       const res = await submitCollateralLoan(algoAmountMicro, days, signed.map(encodeSignedTx)) as { appTxId?: string };
@@ -137,7 +234,7 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
       setCollateralAmount("");
       await onRefresh();
     } catch (err: unknown) {
-      addToast({ type: "error", title: "Collateral request failed", message: err instanceof Error ? err.message : "Unknown error" });
+      addToast({ type: "error", title: "Collateral request failed", message: normalizeLoanActionError(err) });
     } finally {
       setActionLoading(false);
       setActionLabel("");
@@ -151,13 +248,14 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
       if (!amount || amount <= 0) throw new Error("Enter a valid ALGO amount");
       if (algoAmountMicro > lending.unsecuredCreditLimitMicroAlgo) throw new Error("Amount exceeds unsecured credit limit");
 
-      const { walletAddress, walletType } = getWalletSession();
+      const { walletAddress } = getWalletSession();
       setActionLoading(true);
+      await ensureLoanOptIns(walletAddress);
       setActionLabel("Building tx...");
       const tx = await buildUnsecuredLoanTx(walletAddress, algoAmountMicro, 30);
 
       setActionLabel("Sign in wallet...");
-      const signed = await signTransactions([tx], walletType);
+      const signed = await signTransactions([tx]);
 
       setActionLabel("Submitting...");
       const res = await submitUnsecuredLoan(algoAmountMicro, 30, encodeSignedTx(signed[0])) as { appTxId?: string };
@@ -172,7 +270,7 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
       setUnsecuredAmount("");
       await onRefresh();
     } catch (err: unknown) {
-      addToast({ type: "error", title: "Unsecured request failed", message: err instanceof Error ? err.message : "Unknown error" });
+      addToast({ type: "error", title: "Unsecured request failed", message: normalizeLoanActionError(err) });
     } finally {
       setActionLoading(false);
       setActionLabel("");
@@ -182,14 +280,14 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
   const handleRepay = async () => {
     try {
       if (!lending.dueAmount || lending.dueAmount <= 0) throw new Error("No due amount found");
-      const { walletAddress, walletType } = getWalletSession();
+      const { walletAddress } = getWalletSession();
 
       setActionLoading(true);
       setActionLabel("Building tx...");
       const [paymentTx, repayTx] = await buildRepayGroup(walletAddress, lending.dueAmount);
 
       setActionLabel("Sign in wallet...");
-      const signed = await signTransactions([paymentTx, repayTx], walletType);
+      const signed = await signTransactions([paymentTx, repayTx]);
 
       setActionLabel("Submitting...");
       const res = await submitRepay(signed.map(encodeSignedTx)) as { appTxId?: string };
@@ -203,7 +301,7 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
       setLoanMode("none");
       await onRefresh();
     } catch (err: unknown) {
-      addToast({ type: "error", title: "Repayment failed", message: err instanceof Error ? err.message : "Unknown error" });
+      addToast({ type: "error", title: "Repayment failed", message: normalizeLoanActionError(err) });
     } finally {
       setActionLoading(false);
       setActionLabel("");
@@ -250,7 +348,7 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
           <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
             <span style={{ fontFamily: "monospace", fontSize: 9, color: "rgba(255,255,255,0.25)", letterSpacing: "0.1em" }}>AURA</span>
             <span className="font-display" style={{ fontSize: 28, fontWeight: 700, color: "#FFB347", lineHeight: 1, letterSpacing: "-0.03em" }}>
-              {lending.netAuraPoints}
+              {Number(lending.netAuraPoints).toFixed(2)}
             </span>
             <span style={{ fontFamily: "Inter,sans-serif", fontSize: 10, color: "rgba(255,255,255,0.25)" }}>/ 100</span>
           </div>
@@ -268,12 +366,12 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
             color: unsecuredEligible ? "#00FFD1" : "#FFB347",
           }}
         >
-          {unsecuredEligible ? "✓ Eligible for unsecured loans" : `Earn ${Math.max(30 - lending.netAuraPoints, 0)} more pts`}
+          {unsecuredEligible ? "✓ Eligible for unsecured loans" : `Earn ${Math.max(30 - lending.netAuraPoints, 0).toFixed(2)} more pts`}
         </div>
 
         <div style={{ width: "100%", marginTop: 16, display: "flex", flexDirection: "column", gap: 6 }}>
           {[
-            { label: "NET", val: `${lending.netAuraPoints} pts`, color: "#FFB347" },
+            { label: "NET", val: `${Number(lending.netAuraPoints).toFixed(2)} pts`, color: "#FFB347" },
             { label: "PENALTY", val: `${user.auraPenalty} pts`, color: user.auraPenalty > 0 ? "#FF4444" : "rgba(255,255,255,0.3)" },
           ].map((row) => (
             <div key={row.label} style={{ display: "flex", justifyContent: "space-between", padding: "7px 10px", background: "rgba(255,255,255,0.02)", borderRadius: 8 }}>
@@ -284,9 +382,9 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
         </div>
       </div>
 
-      {error && (
+      {displayError && (
         <div style={{ marginTop: -8, marginBottom: 12, fontFamily: "Inter,sans-serif", fontSize: 11, color: "#FF7777" }}>
-          {error}
+          {displayError}
         </div>
       )}
 
@@ -303,7 +401,7 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
             ACTIVE_LOAN
           </div>
           <div className="font-display" style={{ fontSize: 22, fontWeight: 700, color: "#F0F0F0" }}>
-            {(lending.activeLoan / 1_000_000).toFixed(4)} ALGO
+            {(activeLoanAmountMicro / 1_000_000).toFixed(4)} ALGO
           </div>
           <div style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: overdue ? "#FF4444" : "#FFB347", marginTop: 4 }}>
             {overdue ? "OVERDUE · " : "Due "}
@@ -480,7 +578,7 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
                   zIndex: 10,
                 }}
               >
-                {lending.blacklisted > 0 ? "Wallet blacklisted for unsecured loan" : `Need 30 AURA pts (have ${lending.netAuraPoints})`}
+                {lending.blacklisted > 0 ? "Wallet blacklisted for unsecured loan" : `Need 30 AURA pts (have ${Number(lending.netAuraPoints).toFixed(2)})`}
               </div>
             )}
           </div>

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { getPoolInfo } from "@/src/utils/poolService";
+import { getLoanInfoPublic } from "@/src/utils/loanService";
 
 const SECTION_BG = "rgba(5,5,10,0.92)";
 const CARD: React.CSSProperties = {
@@ -46,62 +47,86 @@ function CardHover({ children, style }: { children: React.ReactNode; style?: Rea
   );
 }
 
-// Animated arc for Aura card
-function AuraArc({ active }: { active: boolean }) {
+// Aura target indicator (static protocol threshold, not user data)
+function AuraArc() {
   const r = 34;
-  const circ = 2 * Math.PI * r;
-  const target = circ * (1 / 30);
-  const [dash, setDash] = useState(0);
-  useEffect(() => {
-    if (!active) return;
-    let start: number | null = null;
-    const raf = (now: number) => {
-      if (!start) start = now;
-      const p = Math.min((now - start) / 1200, 1);
-      setDash(p * target);
-      if (p < 1) requestAnimationFrame(raf);
-    };
-    requestAnimationFrame(raf);
-  }, [active, target]);
 
   return (
     <div style={{ position: "relative", width: 80, height: 80, margin: "16px auto 0" }}>
       <svg width="80" height="80" viewBox="0 0 80 80" style={{ transform: "rotate(-90deg)" }}>
         <circle cx="40" cy="40" r={r} stroke="rgba(255,183,71,0.12)" strokeWidth="5" fill="none" />
-        <circle cx="40" cy="40" r={r} stroke="#FFB347" strokeWidth="5" fill="none"
-          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" />
+        <circle
+          cx="40"
+          cy="40"
+          r={r}
+          stroke="#FFB347"
+          strokeWidth="5"
+          fill="none"
+          strokeDasharray="6 4"
+          strokeLinecap="round"
+          opacity={0.75}
+        />
       </svg>
-      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter,sans-serif", fontSize: 13, fontWeight: 700, color: "#FFB347" }}>
-        1/30
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "Inter,sans-serif",
+          fontSize: 12,
+          fontWeight: 700,
+          color: "#FFB347",
+          textTransform: "uppercase",
+        }}
+      >
+        30 pts
       </div>
     </div>
   );
 }
 
-// Pool utilization bar
-function PoolBar({ active }: { active: boolean }) {
-  const [w, setW] = useState(0);
-  useEffect(() => {
-    if (!active) return;
-    let start: number | null = null;
-    const raf = (now: number) => {
-      if (!start) start = now;
-      const p = Math.min((now - start) / 1200, 1);
-      setW(p * 67);
-      if (p < 1) requestAnimationFrame(raf);
-    };
-    requestAnimationFrame(raf);
-  }, [active]);
+function formatPct(value: number | null) {
+  if (!Number.isFinite(value ?? NaN)) return "--";
+  return `${Number(value).toFixed(2)}%`;
+}
+
+// Utilization = pendingLoan / (tvl + pendingLoan) * 100
+function PoolBar({ utilizationPct }: { utilizationPct: number | null }) {
+  const width = Number.isFinite(utilizationPct ?? NaN)
+    ? Math.max(0, Math.min(100, Number(utilizationPct)))
+    : 0;
 
   return (
     <div style={{ marginTop: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
         <span style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Pool Utilization</span>
-        <span style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: "#F0F0F0" }}>67%</span>
+        <span style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: "#F0F0F0" }}>
+          {formatPct(utilizationPct)}
+        </span>
       </div>
       <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 9999, overflow: "hidden" }}>
-        <div style={{ height: "100%", width: `${w}%`, background: "linear-gradient(90deg,#00FFD1,#7B2FFF)", borderRadius: 9999, transition: "width 0.05s linear", position: "relative", overflow: "hidden" }}>
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent)", animation: "shimmer-sweep 2s linear infinite" }} />
+        <div
+          style={{
+            height: "100%",
+            width: `${width}%`,
+            background: "linear-gradient(90deg,#00FFD1,#7B2FFF)",
+            borderRadius: 9999,
+            transition: "width 0.35s ease",
+            position: "relative",
+            overflow: "hidden",
+            opacity: 0.6,
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent)",
+              animation: "shimmer-sweep 2s linear infinite",
+            }}
+          />
         </div>
       </div>
     </div>
@@ -139,33 +164,16 @@ function Sparkline({ active }: { active: boolean }) {
   );
 }
 
-// Simulated transaction hash stream for Card A
+// Informational realtime source block for Card A
 function TxStream() {
-  const [lines, setLines] = useState<string[]>([]);
-
-  useEffect(() => {
-    const chars = "0123456789abcdef";
-    const rand = (n: number) => Array.from({ length: n }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-    const actions = ["DEPOSIT", "WITHDRAW", "BORROW", "REPAY", "MINT_SHARE"];
-    const amounts = ["50", "120", "1000", "250", "88", "300"];
-
-    const initial = Array.from({ length: 6 }, () =>
-      `${rand(6)}  ${actions[Math.floor(Math.random() * actions.length)]}  ${amounts[Math.floor(Math.random() * amounts.length)]} ALGO`
-    );
-    setLines(initial);
-
-    const interval = setInterval(() => {
-      setLines((prev) => [
-        `${rand(6)}  ${actions[Math.floor(Math.random() * actions.length)]}  ${amounts[Math.floor(Math.random() * amounts.length)]} ALGO`,
-        ...prev.slice(0, 5),
-      ]);
-    }, 1400);
-    return () => clearInterval(interval);
-  }, []);
+  const lines = [
+    "Pool snapshots stream every 2s from backend.",
+    "Open dashboard charts for per-snapshot activity.",
+  ];
 
   return (
     <div
-      aria-label="Live transaction stream"
+      aria-label="Realtime source information"
       style={{
         marginTop: "auto",
         padding: "12px 14px",
@@ -177,16 +185,15 @@ function TxStream() {
       }}
     >
       <div style={{ fontSize: 9, color: "rgba(0,255,209,0.4)", letterSpacing: "0.1em", marginBottom: 8 }}>
-        LIVE · POOL_TXNS
+        REALTIME SOURCE
       </div>
       {lines.map((line, i) => (
         <div
           key={i}
           style={{
             fontSize: 11,
-            color: i === 0 ? "rgba(0,255,209,0.8)" : `rgba(255,255,255,${0.15 - i * 0.015})`,
+            color: i === 0 ? "rgba(0,255,209,0.8)" : "rgba(255,255,255,0.45)",
             padding: "2px 0",
-            transition: "color 0.4s ease",
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
@@ -198,40 +205,68 @@ function TxStream() {
     </div>
   );
 }
-
 export default function BentoGrid() {
   const { ref: sectionRef, visible } = useReveal(0.1);
 
   const [poolStats, setPoolStats] = useState<{ balance: number; sharePrice: number; totalShares: number } | null>(null);
+  const [pendingLoanMicroAlgo, setPendingLoanMicroAlgo] = useState<number | null>(null);
 
   useEffect(() => {
     let mounted = true;
 
-    const fetchPool = async () => {
-      try {
-        const res = await getPoolInfo();
-        if (mounted && res.pool) setPoolStats(res.pool);
-      } catch {
-        // Keep static fallback values when request fails.
+    const load = async () => {
+      const [poolRes, loanInfoRes] = await Promise.allSettled([
+        getPoolInfo(),
+        getLoanInfoPublic(),
+      ]);
+      if (!mounted) return;
+
+      if (poolRes.status === "fulfilled" && poolRes.value?.pool) {
+        setPoolStats(poolRes.value.pool);
+      }
+
+      if (loanInfoRes.status === "fulfilled") {
+        const pending = Number(loanInfoRes.value?.protocolMetrics?.pendingLoanMicroAlgo ?? NaN);
+        setPendingLoanMicroAlgo(Number.isFinite(pending) ? Math.max(0, pending) : null);
       }
     };
 
-    fetchPool();
+    load();
+    const id = setInterval(load, 15_000);
 
     return () => {
       mounted = false;
+      clearInterval(id);
     };
   }, []);
 
   const poolBalanceLabel = poolStats
     ? `${(poolStats.balance / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 4 })} ALGO`
-    : "54,030 ALGO";
+    : "--";
   const sharePriceLabel = poolStats
-    ? `${(poolStats.sharePrice / 1_000_000).toFixed(4)} ALGO`
-    : "1.0031 ALGO";
+    ? (() => {
+        const value = poolStats.sharePrice / 1_000_000;
+        const formatted =
+          value < 0.001
+            ? value.toFixed(6)
+            : value < 1
+              ? value.toFixed(4)
+              : value.toLocaleString("en-US", { maximumFractionDigits: 6 });
+        return `${formatted} ALGO`;
+      })()
+    : "--";
   const totalSharesLabel = poolStats
     ? poolStats.totalShares.toLocaleString("en-US")
-    : "53,863";
+    : "--";
+  const utilizationPct = (() => {
+    if (!poolStats) return null;
+    const tvl = Number(poolStats.balance || 0);
+    const pending = Number(pendingLoanMicroAlgo || 0);
+    if (tvl <= 0 && pending <= 0) return 0;
+    const ratio = pending / (tvl + pending);
+    if (!Number.isFinite(ratio) || ratio < 0) return 0;
+    return ratio * 100;
+  })();
 
   const cardReveal = (delay: number): React.CSSProperties => ({
     opacity: visible ? 1 : 0,
@@ -304,7 +339,7 @@ export default function BentoGrid() {
                   <span style={{ fontFamily: "Inter,sans-serif", fontSize: 12, fontWeight: 600, color: "#F0F0F0" }}>{value}</span>
                 </div>
               ))}
-              <PoolBar active={visible} />
+              <PoolBar utilizationPct={utilizationPct} />
             </div>
             {/* Live transaction stream — the differentiator */}
             <TxStream />
@@ -339,7 +374,7 @@ export default function BentoGrid() {
             <p style={{ fontFamily: "Inter,sans-serif", fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 1.6 }}>
               Build on-chain credit history. Reach 30 pts to borrow without any collateral.
             </p>
-            <AuraArc active={visible} />
+            <AuraArc />
           </CardHover>
         </div>
 
@@ -381,3 +416,4 @@ export default function BentoGrid() {
     </section>
   );
 }
+

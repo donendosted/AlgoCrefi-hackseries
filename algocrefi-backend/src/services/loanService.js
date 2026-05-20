@@ -1,5 +1,6 @@
-﻿const algosdk = require("algosdk");
+const algosdk = require("algosdk");
 require("dotenv").config();
+const { decodeSignedTxnSafe } = require("./signedTxnUtils");
 
 const algodClient = new algosdk.Algodv2(
   process.env.ALGOD_TOKEN || "",
@@ -52,9 +53,13 @@ function methodSelectorHex(signature) {
 }
 
 function decodeSignedTxn(base64) {
-  const raw = Buffer.from(base64, "base64");
-  const decoded = algosdk.decodeSignedTransaction(raw);
-  return { raw, decoded };
+  const { raw, txn, decodeError } = decodeSignedTxnSafe(base64, "signed loan transaction");
+  if (decodeError) {
+    console.warn("decodeSignedTxn (loan): strict signed decode failed, using txn-map fallback", {
+      reason: decodeError.message,
+    });
+  }
+  return { raw, txn };
 }
 
 function decodeUint64Arg(argBytes) {
@@ -62,7 +67,7 @@ function decodeUint64Arg(argBytes) {
 }
 
 function getAppCallDetails(decoded) {
-  const tx = decoded?.txn;
+  const tx = decoded?.txn || decoded;
   const appCall = tx?.applicationCall;
   if (!tx || !appCall) return null;
 
@@ -82,6 +87,16 @@ function getAppCallDetails(decoded) {
 
 function ensure(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function isMissingLocalStateError(message) {
+  const msg = String(message || "").toLowerCase();
+  return (
+    msg.includes("has not opted in to app") ||
+    msg.includes("has not opted in") ||
+    msg.includes("unavailable local state") ||
+    msg.includes("app_local_get_ex")
+  );
 }
 
 async function waitTx(txId, rounds = 20) {
@@ -150,7 +165,7 @@ async function executeReadonlyOrZero(appId, methodSignature, methodArgs = []) {
     return await executeReadonly(appId, methodSignature, methodArgs);
   } catch (err) {
     const msg = String(err?.message || "");
-    if (msg.includes("has not opted in to app")) return 0;
+    if (isMissingLocalStateError(msg)) return 0;
     throw err;
   }
 }
@@ -198,7 +213,18 @@ async function readLocalStateUint(address, appId, key) {
     return Number(hit?.value?.uint || 0);
   } catch (err) {
     const msg = String(err?.message || "");
-    if (msg.includes("has not opted in to app") || msg.includes("404")) return 0;
+    if (isMissingLocalStateError(msg) || msg.includes("404")) return 0;
+    throw err;
+  }
+}
+
+async function checkAccountOptedIn(address, appId) {
+  try {
+    await algodClient.accountApplicationInformation(address, appId).do();
+    return true;
+  } catch (err) {
+    const msg = String(err?.message || "");
+    if (isMissingLocalStateError(msg) || msg.includes("404")) return false;
     throw err;
   }
 }
@@ -210,8 +236,12 @@ async function readGlobalStateUint(appId, key) {
   return Number(hit?.value?.uint || 0);
 }
 
-const priceCache = { price: 0.1, ts: 0 };
+const priceCache = { price: 0, ts: 0 };
 const PRICE_CACHE_TTL_MS = 5 * 60 * 1000;
+
+function getTinymanPoolAddress() {
+  return String(process.env.TINYMAN_POOL_ADDRESS || process.env.TINYMAN_POOL_ID || "").trim();
+}
 
 async function fetchAlgoUsdPrice() {
   const now = Date.now();
@@ -219,8 +249,9 @@ async function fetchAlgoUsdPrice() {
     return priceCache.price;
   }
 
-  const poolAddress = "JOEPFUDG7NS4EEUM7WZW7GA6VLD3STS5DDCJWKSGB2QLHIWDF2CJMXEFTM";
-  const usdcAssetId = 10458941;
+  const poolAddress = getTinymanPoolAddress();
+  const usdcAssetId = getUsdcAssetId();
+  ensure(poolAddress, "Tinyman pool address is required (set TINYMAN_POOL_ADDRESS or TINYMAN_POOL_ID)");
 
   try {
     const account = await algodClient.accountInformation(poolAddress).do();
@@ -261,10 +292,7 @@ async function getCollateralQuote(algoAmountMicro, daysToRepay) {
   const algoAmountInAlgo = algoAmount / MICRO_ALGO;
 
   const realMinCollateralUsdc = algoAmountInAlgo * algoUsdPrice * 1.5;
-  const testnetUsdcPerAlgo = Number(process.env.TESTNET_USDC_PER_ALGO || 9);
-  const testnetMinCollateralUsdc = algoAmountInAlgo * testnetUsdcPerAlgo;
-
-  const requiredUsdc = Math.max(realMinCollateralUsdc, testnetMinCollateralUsdc);
+  const requiredUsdc = realMinCollateralUsdc;
   const requiredUsdcUnits = Math.ceil(requiredUsdc * 10 ** USDC_DECIMALS);
 
   const { interest, due } = calculateDue(algoAmount, days);
@@ -275,7 +303,6 @@ async function getCollateralQuote(algoAmountMicro, daysToRepay) {
     daysToRepay: days,
     algoUsdPrice,
     realMinCollateralUsdc,
-    testnetMinCollateralUsdc,
     requiredCollateralUsdc: requiredUsdc,
     requiredCollateralUsdcUnits: requiredUsdcUnits,
     estimatedInterestMicroAlgo: interest,
@@ -289,7 +316,7 @@ function validateCollateralBorrowGroup({ decodedGroup, expectedSender, quote }) 
   const selector = methodSelectorHex(METHODS.requestCollateralLoan);
 
   const appCallIdx = decodedGroup.findIndex((item) => {
-    const d = getAppCallDetails(item.decoded);
+    const d = getAppCallDetails(item.txn);
     return (
       d &&
       d.type === "appl" &&
@@ -302,7 +329,7 @@ function validateCollateralBorrowGroup({ decodedGroup, expectedSender, quote }) 
 
   ensure(appCallIdx >= 0, "Collateral loan app call not found in signed group");
 
-  const appCall = getAppCallDetails(decodedGroup[appCallIdx].decoded);
+  const appCall = getAppCallDetails(decodedGroup[appCallIdx].txn);
   ensure(appCall.appArgs.length >= 5, "Invalid collateral loan app args");
 
   const algoAmountArg = decodeUint64Arg(appCall.appArgs[1]);
@@ -319,7 +346,7 @@ function validateCollateralBorrowGroup({ decodedGroup, expectedSender, quote }) 
 
   ensure(collateralTxIndex >= 0 && collateralTxIndex < decodedGroup.length, "Invalid collateral txn index");
 
-  const collateralTxn = decodedGroup[collateralTxIndex].decoded?.txn;
+  const collateralTxn = decodedGroup[collateralTxIndex].txn;
   ensure(collateralTxn?.type === "axfer", "Referenced collateral txn is not asset transfer");
 
   const assetTransfer = collateralTxn.assetTransfer;
@@ -339,7 +366,7 @@ function validateAddLiquidityGroup({ decodedGroup, expectedSender }) {
   const selector = methodSelectorHex(METHODS.adminAddPoolLiquidity);
 
   const appCallIdx = decodedGroup.findIndex((item) => {
-    const d = getAppCallDetails(item.decoded);
+    const d = getAppCallDetails(item.txn);
     return (
       d &&
       d.type === "appl" &&
@@ -351,13 +378,13 @@ function validateAddLiquidityGroup({ decodedGroup, expectedSender }) {
   });
 
   ensure(appCallIdx >= 0, "admin_add_pool_liquidity app call not found in signed group");
-  const appCall = getAppCallDetails(decodedGroup[appCallIdx].decoded);
+  const appCall = getAppCallDetails(decodedGroup[appCallIdx].txn);
   ensure(appCall.appArgs.length >= 2, "Invalid admin_add_pool_liquidity args");
 
   const paymentIndex = decodeUint64Arg(appCall.appArgs[1]);
   ensure(paymentIndex >= 0 && paymentIndex < decodedGroup.length, "Invalid payment txn index");
 
-  const paymentTxn = decodedGroup[paymentIndex].decoded?.txn;
+  const paymentTxn = decodedGroup[paymentIndex].txn;
   ensure(paymentTxn?.type === "pay", "Referenced liquidity txn is not payment");
   ensure(paymentTxn.sender.toString() === expectedSender, "Liquidity sender mismatch");
   ensure(paymentTxn.payment.receiver.toString() === appAddress, "Liquidity receiver must be app account");
@@ -370,7 +397,7 @@ async function validateRepayGroup({ decodedGroup, expectedSender }) {
   const selector = methodSelectorHex(METHODS.repay);
 
   const appCallIdx = decodedGroup.findIndex((item) => {
-    const d = getAppCallDetails(item.decoded);
+    const d = getAppCallDetails(item.txn);
     return (
       d &&
       d.type === "appl" &&
@@ -383,7 +410,7 @@ async function validateRepayGroup({ decodedGroup, expectedSender }) {
 
   ensure(appCallIdx >= 0, "Repay app call not found in signed group");
 
-  const appCall = getAppCallDetails(decodedGroup[appCallIdx].decoded);
+  const appCall = getAppCallDetails(decodedGroup[appCallIdx].txn);
   ensure(appCall.appArgs.length >= 2, "Invalid repay app args");
 
   const foreignAssets = appCall.tx.applicationCall?.foreignAssets || [];
@@ -393,7 +420,7 @@ async function validateRepayGroup({ decodedGroup, expectedSender }) {
   const paymentTxnIndex = decodeUint64Arg(appCall.appArgs[1]);
   ensure(paymentTxnIndex >= 0 && paymentTxnIndex < decodedGroup.length, "Invalid repayment payment index");
 
-  const paymentTxn = decodedGroup[paymentTxnIndex].decoded?.txn;
+  const paymentTxn = decodedGroup[paymentTxnIndex].txn;
   ensure(paymentTxn?.type === "pay", "Referenced repayment txn is not payment");
   ensure(paymentTxn.sender.toString() === expectedSender, "Repayment sender mismatch");
   ensure(paymentTxn.payment.receiver.toString() === appAddress, "Repayment receiver must be lending app account");
@@ -402,7 +429,7 @@ async function validateRepayGroup({ decodedGroup, expectedSender }) {
 async function validateUnsecuredBorrowGroup({ decodedGroup, expectedSender, algoAmount, daysToRepay }) {
   const selector = methodSelectorHex(METHODS.requestUnsecuredLoan);
   const appCallIdx = decodedGroup.findIndex((item) => {
-    const d = getAppCallDetails(item.decoded);
+    const d = getAppCallDetails(item.txn);
     return (
       d &&
       d.type === "appl" &&
@@ -414,7 +441,7 @@ async function validateUnsecuredBorrowGroup({ decodedGroup, expectedSender, algo
   });
 
   ensure(appCallIdx >= 0, "Unsecured loan app call not found in signed group");
-  const appCall = getAppCallDetails(decodedGroup[appCallIdx].decoded);
+  const appCall = getAppCallDetails(decodedGroup[appCallIdx].txn);
   ensure(appCall.appArgs.length >= 3, "Invalid unsecured borrow args");
 
   const amountArg = decodeUint64Arg(appCall.appArgs[1]);
@@ -474,7 +501,7 @@ async function submitUnsecuredBorrowGroup({ signedGroupTxs, walletAddress, algoA
 
 async function submitLendingOptIn({ signedOptInTx, walletAddress }) {
   const decoded = decodeSignedTxn(signedOptInTx);
-  const details = getAppCallDetails(decoded.decoded);
+  const details = getAppCallDetails(decoded.txn);
 
   ensure(details, "Invalid signed transaction");
   ensure(details.type === "appl", "Signed tx must be app call");
@@ -496,7 +523,7 @@ async function submitAuraOptIn({ signedOptInTx, walletAddress }) {
   }
 
   const decoded = decodeSignedTxn(signedOptInTx);
-  const details = getAppCallDetails(decoded.decoded);
+  const details = getAppCallDetails(decoded.txn);
 
   ensure(details, "Invalid signed transaction");
   ensure(details.type === "appl", "Signed tx must be app call");
@@ -537,44 +564,67 @@ async function appOptInUsdc() {
 
 async function getLendingUserState(walletAddress) {
   const appId = getLendingAppId();
+  const [optedIn, availableAlgo] = await Promise.all([
+    checkAccountOptedIn(walletAddress, appId),
+    getPoolAlgo(),
+  ]);
+
+  if (!optedIn) {
+    return {
+      optedIn: false,
+      activeLoan: 0,
+      dueAmount: 0,
+      collateralUsdc: 0,
+      dueTs: 0,
+      auraEarned: 0,
+      auraPenalty: 0,
+      netAura: 0,
+      netAuraPoints: 0,
+      unsecuredCreditLimit: 0,
+      unsecuredCreditLimitMicroAlgo: 0,
+      unsecuredCreditLimitAlgo: 0,
+      blacklisted: 0,
+      availableAlgo: Number(availableAlgo || 0),
+      availableAlgoUnits: Number(availableAlgo || 0) / MICRO_ALGO,
+      unsecuredEligible: false,
+    };
+  }
+
   const [
     activeLoan,
     dueAmount,
+    collateralUsdc,
     dueTs,
-    netAura,
-    unsecuredCreditLimit,
+    auraEarned,
+    auraPenalty,
+    unsecuredCreditLimitRaw,
     blacklisted,
-    availableAlgo,
   ] =
     await Promise.all([
       readLocalStateUint(walletAddress, appId, "loan_active"),
       readLocalStateUint(walletAddress, appId, "due_amount"),
+      readLocalStateUint(walletAddress, appId, "collateral_usdc"),
       readLocalStateUint(walletAddress, appId, "due_ts"),
-      Promise.all([
-        readLocalStateUint(walletAddress, appId, "aura_earned"),
-        readLocalStateUint(walletAddress, appId, "aura_penalty"),
-      ]).then(([earned, penalty]) => Math.max(0, earned - penalty)),
-      Promise.all([
-        readLocalStateUint(walletAddress, appId, "aura_earned"),
-        readLocalStateUint(walletAddress, appId, "aura_penalty"),
-      ]).then(([earned, penalty]) => {
-        const net = Math.max(0, earned - penalty);
-        return Math.floor(net * 0.1 * MICRO_ALGO);
-      }),
+      readLocalStateUint(walletAddress, appId, "aura_earned"),
+      readLocalStateUint(walletAddress, appId, "aura_penalty"),
+      executeReadonlyOrZero(appId, METHODS.getLendingUnsecuredLimit, [walletAddress]),
       readLocalStateUint(walletAddress, appId, "aura_blacklisted"),
-      getPoolAlgo(),
     ]);
 
+  const netAura = Math.max(0, Number(auraEarned || 0) - Number(auraPenalty || 0));
+  const unsecuredCreditLimitCalculated = Math.floor(netAura * 0.1 * MICRO_ALGO);
   const netAuraPoints = Number(netAura || 0);
-  const unsecuredCreditLimitMicroAlgo = Number(unsecuredCreditLimit || 0);
+  const unsecuredCreditLimitMicroAlgo = Number(unsecuredCreditLimitRaw || unsecuredCreditLimitCalculated || 0);
   const unsecuredCreditLimitAlgo = unsecuredCreditLimitMicroAlgo / MICRO_ALGO;
 
   return {
+    optedIn: true,
     activeLoan: Number(activeLoan || 0),
     dueAmount: Number(dueAmount || 0),
+    collateralUsdc: Number(collateralUsdc || 0),
     dueTs: Number(dueTs || 0),
-    auraEarned: 0,
-    auraPenalty: 0,
+    auraEarned: Number(auraEarned || 0),
+    auraPenalty: Number(auraPenalty || 0),
     netAura: netAuraPoints,
     netAuraPoints,
     unsecuredCreditLimit: unsecuredCreditLimitMicroAlgo,
@@ -587,9 +637,33 @@ async function getLendingUserState(walletAddress) {
   };
 }
 
+async function getLendingActiveLoan(walletAddress) {
+  const appId = getLendingAppId();
+  const activeLoan = await readLocalStateUint(walletAddress, appId, "loan_active");
+  return Number(activeLoan || 0);
+}
+
+async function getLendingDueAmount(walletAddress) {
+  const appId = getLendingAppId();
+  const dueAmount = await readLocalStateUint(walletAddress, appId, "due_amount");
+  return Number(dueAmount || 0);
+}
+
 async function getAuraUserState(walletAddress) {
   if (!hasExternalAuraApp()) {
     const appId = getLendingAppId();
+    const optedIn = await checkAccountOptedIn(walletAddress, appId);
+
+    if (!optedIn) {
+      return {
+        optedIn: false,
+        net: 0,
+        earned: 0,
+        penalty: 0,
+        blacklisted: 0,
+      };
+    }
+
     const [earned, penalty, blacklisted] = await Promise.all([
       readLocalStateUint(walletAddress, appId, "aura_earned"),
       readLocalStateUint(walletAddress, appId, "aura_penalty"),
@@ -598,6 +672,7 @@ async function getAuraUserState(walletAddress) {
     const net = Math.max(0, earned - penalty);
 
     return {
+      optedIn: true,
       net: Number(net || 0),
       earned: Number(earned || 0),
       penalty: Number(penalty || 0),
@@ -606,6 +681,17 @@ async function getAuraUserState(walletAddress) {
   }
 
   const appId = getAuraAppId();
+  const optedIn = await checkAccountOptedIn(walletAddress, appId);
+
+  if (!optedIn) {
+    return {
+      optedIn: false,
+      net: 0,
+      earned: 0,
+      penalty: 0,
+      blacklisted: 0,
+    };
+  }
 
   const [net, earned, penalty, blacklisted] = await Promise.all([
     executeReadonlyOrZero(appId, METHODS.auraGetNet, [walletAddress]),
@@ -615,6 +701,7 @@ async function getAuraUserState(walletAddress) {
   ]);
 
   return {
+    optedIn: true,
     net: Number(net || 0),
     earned: Number(earned || 0),
     penalty: Number(penalty || 0),
@@ -700,6 +787,8 @@ module.exports = {
   submitUnsecuredBorrowGroup,
 
   getLendingUserState,
+  getLendingActiveLoan,
+  getLendingDueAmount,
   getAuraUserState,
 
   syncAuraFromRepay,

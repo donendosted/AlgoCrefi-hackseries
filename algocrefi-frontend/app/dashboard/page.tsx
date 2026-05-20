@@ -30,6 +30,8 @@ type DashboardUser = {
 };
 
 type DashboardLending = {
+  optedIn: boolean;
+  auraOptedIn: boolean;
   activeLoan: number;
   dueAmount: number;
   dueTs: number;
@@ -44,6 +46,21 @@ type CardErrors = {
   user?: string;
   lending?: string;
 };
+
+function normalizeLendingError(error: unknown) {
+  const message = error instanceof Error ? error.message : "Failed to load loan status";
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes("unavailable local state") ||
+    normalized.includes("app_local_get_ex") ||
+    normalized.includes("has not opted in")
+  ) {
+    return "Wallet is not opted into lending yet. Complete lending opt-in once, then retry.";
+  }
+
+  return message;
+}
 
 function DashboardInner() {
   const [activeNav, setActiveNav] = useState("dashboard");
@@ -61,6 +78,8 @@ function DashboardInner() {
     auraPenalty: 0,
   });
   const [lending, setLending] = useState<DashboardLending>({
+    optedIn: false,
+    auraOptedIn: false,
     activeLoan: 0,
     dueAmount: 0,
     dueTs: 0,
@@ -110,7 +129,7 @@ function DashboardInner() {
 
       if (hasError(loanResult)) {
         if (!(loanResult.error instanceof ApiError && loanResult.error.status === 401)) {
-          nextErrors.lending = loanResult.error instanceof Error ? loanResult.error.message : "Failed to load loan status";
+          nextErrors.lending = normalizeLendingError(loanResult.error);
         }
       } else {
         const loanData = loanResult.data as LoanStatusResponse;
@@ -118,6 +137,8 @@ function DashboardInner() {
         const auraData = loanData.aura ?? {};
         setLending((prev) => ({
           ...prev,
+          optedIn: Boolean(lendingData.optedIn),
+          auraOptedIn: Boolean(auraData.optedIn ?? lendingData.optedIn),
           activeLoan: Number(lendingData.activeLoan || 0),
           dueAmount: Number(lendingData.dueAmount || 0),
           dueTs: Number(lendingData.dueTs || 0),
@@ -146,10 +167,10 @@ function DashboardInner() {
     () => [
       { key: "TVL", val: `${(pool.balance / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 2 })} ALGO`, color: "#00FFD1" },
       { key: "SHARES", val: user.shares.toLocaleString(), color: "rgba(255,255,255,0.7)" },
-      { key: "AURA", val: `${lending.netAuraPoints} pts`, color: "rgba(255,183,71,0.85)" },
-      { key: "LOAN", val: lending.activeLoan > 0 ? `${(lending.activeLoan / 1_000_000).toFixed(4)} ALGO` : "None", color: "rgba(255,255,255,0.7)" },
+      { key: "AURA", val: `${Number(lending.netAuraPoints).toFixed(2)} pts`, color: "rgba(255,183,71,0.85)" },
+      { key: "LOAN", val: lending.activeLoan > 0 ? `${(lending.dueAmount / 1_000_000).toFixed(4)} ALGO` : "None", color: "rgba(255,255,255,0.7)" },
     ],
-    [pool.balance, user.shares, lending.netAuraPoints, lending.activeLoan]
+    [pool.balance, user.shares, lending.netAuraPoints, lending.activeLoan, lending.dueAmount]
   );
 
   const navTitle =
@@ -183,7 +204,7 @@ function DashboardInner() {
     };
 
     run();
-    const interval = setInterval(run, 15000);
+    const interval = setInterval(run, 5000);
 
     return () => {
       mounted = false;
@@ -272,7 +293,7 @@ function DashboardInner() {
           <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: 24 }}>
             <div style={{ fontFamily: "monospace", fontSize: 8, color: "rgba(255,183,71,0.45)", letterSpacing: "0.12em" }}>// AURA_CORE</div>
             <h3 className="font-display" style={{ color: "#F0F0F0", margin: "6px 0 16px", fontSize: 18 }}>Aura Reputation</h3>
-            <div className="font-display" style={{ fontSize: 56, color: "#FFB347", lineHeight: 1, letterSpacing: "-0.04em" }}>{lending.netAuraPoints}</div>
+            <div className="font-display" style={{ fontSize: 56, color: "#FFB347", lineHeight: 1, letterSpacing: "-0.04em" }}>{Number(lending.netAuraPoints).toFixed(2)}</div>
             <div style={{ marginTop: 8, color: "rgba(255,255,255,0.45)", fontSize: 13 }}>Net score used for unsecured eligibility and risk weighting.</div>
             <div style={{ marginTop: 16, display: "grid", gap: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", background: "rgba(255,255,255,0.02)", borderRadius: 10, padding: "10px 12px" }}>
@@ -282,7 +303,7 @@ function DashboardInner() {
               <div style={{ display: "flex", justifyContent: "space-between", background: "rgba(255,255,255,0.02)", borderRadius: 10, padding: "10px 12px" }}>
                 <span style={{ color: "rgba(255,255,255,0.35)", fontFamily: "monospace", fontSize: 10 }}>UNSECURED ACCESS</span>
                 <span style={{ color: lending.unsecuredEligible ? "#00FFD1" : "#FFB347", fontFamily: "monospace", fontSize: 12 }}>
-                  {lending.unsecuredEligible ? "Enabled" : `Need ${Math.max(30 - lending.netAuraPoints, 0)} more pts`}
+                  {lending.unsecuredEligible ? "Enabled" : `Need ${Math.max(30 - lending.netAuraPoints, 0).toFixed(2)} more pts`}
                 </span>
               </div>
             </div>
@@ -318,7 +339,7 @@ function DashboardInner() {
               </div>
               <div style={{ background: "rgba(255,255,255,0.02)", borderRadius: 10, padding: "10px 12px" }}>
                 <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontFamily: "monospace" }}>REFRESH INTERVAL</div>
-                <div style={{ color: "#F0F0F0", fontSize: 13, marginTop: 4 }}>Dashboard 15s, Market 30s</div>
+                <div style={{ color: "#F0F0F0", fontSize: 13, marginTop: 4 }}>Dashboard 5s, Market 5s</div>
               </div>
             </div>
           </div>

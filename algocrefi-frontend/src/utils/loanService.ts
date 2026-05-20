@@ -2,6 +2,7 @@ import { apiRequest } from "./apiClient";
 
 export type LoanStatusResponse = {
   lending?: {
+    optedIn?: boolean;
     activeLoan?: number;
     dueAmount?: number;
     dueTs?: number;
@@ -11,8 +12,34 @@ export type LoanStatusResponse = {
     blacklisted?: number;
   };
   aura?: {
+    optedIn?: boolean;
     penalty?: number;
   };
+  [key: string]: unknown;
+};
+
+export type LoanInfoResponse = {
+  lendingAppId?: number;
+  auraAppId?: number;
+  usdcAssetId?: number;
+  unsecuredPolicy?: {
+    minAuraPoints?: number;
+  };
+  protocolMetrics?: {
+    activeLoanWalletCount?: number;
+    pendingLoanMicroAlgo?: number;
+  };
+  walletAddress?: string;
+  lending?: {
+    optedIn?: boolean;
+    activeLoan?: number;
+    dueAmount?: number;
+    dueTs?: number;
+    netAuraPoints?: number;
+    unsecuredEligible?: boolean;
+    unsecuredCreditLimitMicroAlgo?: number;
+    blacklisted?: number;
+  } | null;
   [key: string]: unknown;
 };
 
@@ -22,6 +49,10 @@ export async function getLoanStatus() {
 
 export async function getLoanStatusPublic(walletAddress: string) {
   return apiRequest<LoanStatusResponse>(`/api/loan/status/${walletAddress}`, { auth: false });
+}
+
+export async function getLoanInfoPublic() {
+  return apiRequest<LoanInfoResponse>("/api/loan/info", { auth: false });
 }
 
 export async function getCollateralQuote(algoAmount: number, daysToRepay: number) {

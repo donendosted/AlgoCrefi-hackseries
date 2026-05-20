@@ -37,6 +37,12 @@ function extractErrorMessage(payload: unknown, fallback: string) {
   return fallback;
 }
 
+function isExplicitFailure(payload: unknown) {
+  if (!payload || typeof payload !== "object") return false;
+  const data = payload as { success?: unknown };
+  return data.success === false;
+}
+
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const { method = "GET", body, auth = true } = options;
 
@@ -75,6 +81,11 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
 
   if (!response.ok) {
     const message = extractErrorMessage(payload, `Request failed with status ${response.status}`);
+    throw new ApiError(response.status, message);
+  }
+
+  if (isExplicitFailure(payload)) {
+    const message = extractErrorMessage(payload, "Request failed");
     throw new ApiError(response.status, message);
   }
 

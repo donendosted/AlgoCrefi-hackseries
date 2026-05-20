@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import type { PoolInfo, UserInfo } from "@/lib/mockData";
+import type { DashboardPool, DashboardUser } from "@/src/types/dashboard";
 import { estimateAlgoFromShares } from "@/src/utils/poolService";
 import { formatDueDate, isLoanOverdue } from "@/src/utils/loanService";
 
@@ -30,10 +30,11 @@ function useCounter(target: number, duration = 1500, key = 0) {
 }
 
 interface Props {
-  pool: PoolInfo;
-  user: UserInfo;
+  pool: DashboardPool;
+  user: DashboardUser;
   lending: {
     activeLoan: number;
+    dueAmount: number;
     dueTs: number;
     netAuraPoints: number;
     unsecuredEligible: boolean;
@@ -122,6 +123,7 @@ function AuraArc({ pts, max = 100 }: { pts: number; max?: number }) {
 
 export default function StatCards({ pool, user, lending, loading = false, errors }: Props) {
   const poolAlgo = pool.balance / 1_000_000;
+  const poolWatermark = `${Math.max(0, Math.floor(poolAlgo / 1000))}K`;
   const overdue = isLoanOverdue(lending.dueTs);
   const refreshKey = `${pool.balance}-${user.shares}-${lending.netAuraPoints}-${lending.activeLoan}-${lending.dueTs}`;
   const poolCount = useCounter(poolAlgo, 1000, loading ? 0 : refreshKey.length + pool.balance);
@@ -133,7 +135,7 @@ export default function StatCards({ pool, user, lending, loading = false, errors
     totalShares: pool.totalShares,
     sharePrice: pool.sharePrice,
   });
-  const activeLoanAlgo = (lending.activeLoan / 1_000_000).toFixed(4);
+  const activeLoanAlgo = (lending.dueAmount / 1_000_000).toFixed(4);
   const dueDate = lending.dueTs > 0 ? formatDueDate(lending.dueTs) : null;
 
   const [barW, setBarW] = useState(0);
@@ -170,7 +172,7 @@ export default function StatCards({ pool, user, lending, loading = false, errors
             letterSpacing: "-0.05em",
           }}
         >
-          54K
+          {poolWatermark}
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <span style={{ fontFamily: "monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", letterSpacing: "0.12em" }}>
@@ -192,7 +194,7 @@ export default function StatCards({ pool, user, lending, loading = false, errors
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6 }}>
           <span style={{ color: "#00FFD1", fontSize: 11 }}>↑</span>
-          <span style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: "#00FFD1" }}>+12.3 ALGO today</span>
+          <span style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: "#00FFD1" }}>Live on-chain pool balance</span>
         </div>
         {/* Utilization bar */}
         <div style={{ marginTop: 14 }}>
@@ -253,7 +255,7 @@ export default function StatCards({ pool, user, lending, loading = false, errors
           <AuraArc pts={lending.netAuraPoints} />
         </div>
         <div className="font-display" style={{ fontSize: 28, fontWeight: 700, color: "#FFB347", marginTop: 6, letterSpacing: "-0.03em", lineHeight: 1 }}>
-          {loading ? <span style={{ display: "inline-block", width: 80, height: 30, background: "rgba(255,255,255,0.08)", borderRadius: 6, animation: "shimmer 1.2s linear infinite" }} /> : Math.floor(auraCount)}
+          {loading ? <span style={{ display: "inline-block", width: 80, height: 30, background: "rgba(255,255,255,0.08)", borderRadius: 6, animation: "shimmer 1.2s linear infinite" }} /> : auraCount.toFixed(2)}
           <span style={{ fontSize: 13, fontWeight: 400, color: "rgba(255,183,71,0.5)", marginLeft: 4 }}>pts</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6 }}>
@@ -264,7 +266,7 @@ export default function StatCards({ pool, user, lending, loading = false, errors
             </>
           ) : (
             <span style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: "rgba(255,255,255,0.3)" }}>
-              Need 30 pts
+              Need {Math.max(30 - lending.netAuraPoints, 0).toFixed(2)} pts
             </span>
           )}
         </div>
