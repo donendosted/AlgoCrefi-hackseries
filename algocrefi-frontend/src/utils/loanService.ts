@@ -2,6 +2,7 @@ import { apiRequest } from "./apiClient";
 
 export type LoanStatusResponse = {
   lending?: {
+    optedIn?: boolean;
     activeLoan?: number;
     dueAmount?: number;
     dueTs?: number;
@@ -11,6 +12,7 @@ export type LoanStatusResponse = {
     blacklisted?: number;
   };
   aura?: {
+    optedIn?: boolean;
     penalty?: number;
   };
   [key: string]: unknown;
@@ -29,6 +31,7 @@ export type LoanInfoResponse = {
   };
   walletAddress?: string;
   lending?: {
+    optedIn?: boolean;
     activeLoan?: number;
     dueAmount?: number;
     dueTs?: number;

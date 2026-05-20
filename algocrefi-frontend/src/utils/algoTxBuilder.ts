@@ -1,5 +1,6 @@
 import algosdk from "algosdk";
 import { getPoolConfig } from "./poolService";
+import { getLoanInfoPublic } from "./loanService";
 
 const USDC_ASSET_ID = 10458941;
 const algodClient = new algosdk.Algodv2("", "https://testnet-api.algonode.cloud", 443);
@@ -16,12 +17,46 @@ function withFlatFee(params: Awaited<ReturnType<typeof getSuggestedParams>>, fee
   };
 }
 
+async function getLoanAppConfig() {
+  const info = await getLoanInfoPublic();
+  const lendingAppId = Number(info.lendingAppId || 0);
+  const auraAppId = Number(info.auraAppId || lendingAppId || 0);
+
+  if (!lendingAppId) {
+    throw new Error("Lending app configuration unavailable");
+  }
+
+  return { lendingAppId, auraAppId };
+}
+
 export async function buildOptInTx(walletAddress: string) {
   const { appId } = await getPoolConfig();
   const optInMethod = algosdk.ABIMethod.fromSignature("opt_in()void");
   return algosdk.makeApplicationOptInTxnFromObject({
     sender: walletAddress,
     appIndex: appId,
+    appArgs: [optInMethod.getSelector()],
+    suggestedParams: await getSuggestedParams(),
+  });
+}
+
+export async function buildLendingOptInTx(walletAddress: string) {
+  const { lendingAppId } = await getLoanAppConfig();
+  const optInMethod = algosdk.ABIMethod.fromSignature("opt_in()void");
+  return algosdk.makeApplicationOptInTxnFromObject({
+    sender: walletAddress,
+    appIndex: lendingAppId,
+    appArgs: [optInMethod.getSelector()],
+    suggestedParams: await getSuggestedParams(),
+  });
+}
+
+export async function buildAuraOptInTx(walletAddress: string) {
+  const { auraAppId } = await getLoanAppConfig();
+  const optInMethod = algosdk.ABIMethod.fromSignature("opt_in()void");
+  return algosdk.makeApplicationOptInTxnFromObject({
+    sender: walletAddress,
+    appIndex: auraAppId,
     appArgs: [optInMethod.getSelector()],
     suggestedParams: await getSuggestedParams(),
   });

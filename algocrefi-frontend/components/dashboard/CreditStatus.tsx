@@ -5,13 +5,16 @@ import { Buffer } from "buffer";
 import type { DashboardUser } from "@/src/types/dashboard";
 import { useToast } from "./toastContext";
 import { getWalletAddress } from "@/src/utils/authService";
-import { buildCollateralLoanGroup, buildRepayGroup, buildUnsecuredLoanTx } from "@/src/utils/algoTxBuilder";
+import { buildAuraOptInTx, buildCollateralLoanGroup, buildLendingOptInTx, buildRepayGroup, buildUnsecuredLoanTx } from "@/src/utils/algoTxBuilder";
 import { algoToMicroAlgo } from "@/src/utils/poolService";
 import {
   formatDueDate,
   getCollateralQuote,
+  getLoanInfoPublic,
   isLoanOverdue,
+  submitAuraOptIn,
   submitCollateralLoan,
+  submitLendingOptIn,
   submitRepay,
   submitUnsecuredLoan,
   usdcToDisplay,
@@ -21,6 +24,8 @@ import { signTransactions } from "@/src/utils/walletService";
 interface Props {
   user: DashboardUser;
   lending: {
+    optedIn: boolean;
+    auraOptedIn: boolean;
     activeLoan: number;
     dueAmount: number;
     dueTs: number;
@@ -34,6 +39,35 @@ interface Props {
 }
 
 type LoanMode = "none" | "collateral" | "unsecured" | "repay";
+
+function isAlreadyOptedInError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("already opted in") ||
+    normalized.includes("already-opted-in") ||
+    normalized.includes("has already opted in") ||
+    normalized.includes("already in ledger")
+  );
+}
+
+function isMissingLocalStateError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("unavailable local state") ||
+    normalized.includes("app_local_get_ex") ||
+    normalized.includes("has not opted in")
+  );
+}
+
+function normalizeLoanActionError(error: unknown) {
+  const message = error instanceof Error ? error.message : "Unknown error";
+  if (isMissingLocalStateError(error)) {
+    return "Wallet is not opted into lending state yet. Please complete lending opt-in and retry.";
+  }
+  return message;
+}
 
 export default function CreditStatus({ user, lending, error, onRefresh }: Props) {
   const [arcOffset, setArcOffset] = useState<number>(0);
@@ -60,6 +94,9 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
   const dueDate = lending.dueTs > 0 ? formatDueDate(lending.dueTs) : null;
   const unsecuredLimitAlgo = lending.unsecuredCreditLimitMicroAlgo / 1_000_000;
   const activeLoanAmountMicro = lending.dueAmount > 0 ? lending.dueAmount : 0;
+  const displayError = error && isMissingLocalStateError(error)
+    ? "Wallet is not opted into lending yet. Complete lending opt-in once, then retry."
+    : error;
 
   useEffect(() => {
     const t = setTimeout(() => setArcOffset(targetOffset), 300);
@@ -108,6 +145,65 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
 
   const encodeSignedTx = (signedTx: Uint8Array) => Buffer.from(signedTx).toString("base64");
 
+  const ensureLoanOptIns = async (walletAddress: string) => {
+    const needsLendingOptIn = !lending.optedIn;
+    const maybeNeedsAuraOptIn = !lending.auraOptedIn;
+
+    if (!needsLendingOptIn && !maybeNeedsAuraOptIn) {
+      return;
+    }
+
+    const info = await getLoanInfoPublic();
+    const lendingAppId = Number(info.lendingAppId || 0);
+    const auraAppId = Number(info.auraAppId || lendingAppId || 0);
+
+    if (!lendingAppId) {
+      throw new Error("Lending app configuration unavailable");
+    }
+
+    if (needsLendingOptIn) {
+      setActionLabel("Sign lending opt-in...");
+      const lendingOptInTx = await buildLendingOptInTx(walletAddress);
+      const [signedLendingOptIn] = await signTransactions([lendingOptInTx]);
+
+      setActionLabel("Submitting lending opt-in...");
+      try {
+        const result = await submitLendingOptIn(encodeSignedTx(signedLendingOptIn)) as { appTxId?: string };
+        addToast({
+          type: "success",
+          title: "Lending opt-in confirmed",
+          txId: result.appTxId,
+          message: result.appTxId ? `Tx: ${result.appTxId}` : undefined,
+        });
+      } catch (optInError: unknown) {
+        if (!isAlreadyOptedInError(optInError)) {
+          throw optInError;
+        }
+      }
+    }
+
+    if (maybeNeedsAuraOptIn && auraAppId && auraAppId !== lendingAppId) {
+      setActionLabel("Sign aura opt-in...");
+      const auraOptInTx = await buildAuraOptInTx(walletAddress);
+      const [signedAuraOptIn] = await signTransactions([auraOptInTx]);
+
+      setActionLabel("Submitting aura opt-in...");
+      try {
+        const result = await submitAuraOptIn(encodeSignedTx(signedAuraOptIn)) as { appTxId?: string };
+        addToast({
+          type: "success",
+          title: "Aura opt-in confirmed",
+          txId: result.appTxId,
+          message: result.appTxId ? `Tx: ${result.appTxId}` : undefined,
+        });
+      } catch (optInError: unknown) {
+        if (!isAlreadyOptedInError(optInError)) {
+          throw optInError;
+        }
+      }
+    }
+  };
+
   const handleCollateralRequest = async () => {
     try {
       const amount = Number(collateralAmount);
@@ -118,6 +214,7 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
 
       const { walletAddress } = getWalletSession();
       setActionLoading(true);
+      await ensureLoanOptIns(walletAddress);
       setActionLabel("Building tx...");
       const [usdcTx, appCallTx] = await buildCollateralLoanGroup(walletAddress, algoAmountMicro, days, quote.requiredCollateralUsdcUnits);
 
@@ -137,7 +234,7 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
       setCollateralAmount("");
       await onRefresh();
     } catch (err: unknown) {
-      addToast({ type: "error", title: "Collateral request failed", message: err instanceof Error ? err.message : "Unknown error" });
+      addToast({ type: "error", title: "Collateral request failed", message: normalizeLoanActionError(err) });
     } finally {
       setActionLoading(false);
       setActionLabel("");
@@ -153,6 +250,7 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
 
       const { walletAddress } = getWalletSession();
       setActionLoading(true);
+      await ensureLoanOptIns(walletAddress);
       setActionLabel("Building tx...");
       const tx = await buildUnsecuredLoanTx(walletAddress, algoAmountMicro, 30);
 
@@ -172,7 +270,7 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
       setUnsecuredAmount("");
       await onRefresh();
     } catch (err: unknown) {
-      addToast({ type: "error", title: "Unsecured request failed", message: err instanceof Error ? err.message : "Unknown error" });
+      addToast({ type: "error", title: "Unsecured request failed", message: normalizeLoanActionError(err) });
     } finally {
       setActionLoading(false);
       setActionLabel("");
@@ -203,7 +301,7 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
       setLoanMode("none");
       await onRefresh();
     } catch (err: unknown) {
-      addToast({ type: "error", title: "Repayment failed", message: err instanceof Error ? err.message : "Unknown error" });
+      addToast({ type: "error", title: "Repayment failed", message: normalizeLoanActionError(err) });
     } finally {
       setActionLoading(false);
       setActionLabel("");
@@ -284,9 +382,9 @@ export default function CreditStatus({ user, lending, error, onRefresh }: Props)
         </div>
       </div>
 
-      {error && (
+      {displayError && (
         <div style={{ marginTop: -8, marginBottom: 12, fontFamily: "Inter,sans-serif", fontSize: 11, color: "#FF7777" }}>
-          {error}
+          {displayError}
         </div>
       )}
 

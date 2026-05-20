@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useWallet, WalletId } from "@txnlab/use-wallet-react";
 import { login, signup } from "@/src/utils/authService";
+import { ensureAlgorandEvmChain } from "@/src/utils/ensureAlgorandEvmChain";
 import { hasWalletConnectConfig } from "@/src/utils/xchainConfig";
 import { disconnectWallet, truncateAddress } from "@/src/utils/walletService";
 
@@ -40,6 +41,15 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
 
     try {
       await wallet.connect();
+
+      if (walletId === WalletId.RAINBOWKIT && wallet.getEvmProvider) {
+        try {
+          const evmProvider = await wallet.getEvmProvider();
+          await ensureAlgorandEvmChain(evmProvider);
+        } catch (chainErr: unknown) {
+          console.warn("[wallet] Unable to switch MetaMask to Algorand EVM chain", chainErr);
+        }
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Wallet connection failed");
     } finally {

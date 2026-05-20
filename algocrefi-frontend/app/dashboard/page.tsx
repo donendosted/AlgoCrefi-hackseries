@@ -30,6 +30,8 @@ type DashboardUser = {
 };
 
 type DashboardLending = {
+  optedIn: boolean;
+  auraOptedIn: boolean;
   activeLoan: number;
   dueAmount: number;
   dueTs: number;
@@ -44,6 +46,21 @@ type CardErrors = {
   user?: string;
   lending?: string;
 };
+
+function normalizeLendingError(error: unknown) {
+  const message = error instanceof Error ? error.message : "Failed to load loan status";
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes("unavailable local state") ||
+    normalized.includes("app_local_get_ex") ||
+    normalized.includes("has not opted in")
+  ) {
+    return "Wallet is not opted into lending yet. Complete lending opt-in once, then retry.";
+  }
+
+  return message;
+}
 
 function DashboardInner() {
   const [activeNav, setActiveNav] = useState("dashboard");
@@ -61,6 +78,8 @@ function DashboardInner() {
     auraPenalty: 0,
   });
   const [lending, setLending] = useState<DashboardLending>({
+    optedIn: false,
+    auraOptedIn: false,
     activeLoan: 0,
     dueAmount: 0,
     dueTs: 0,
@@ -110,7 +129,7 @@ function DashboardInner() {
 
       if (hasError(loanResult)) {
         if (!(loanResult.error instanceof ApiError && loanResult.error.status === 401)) {
-          nextErrors.lending = loanResult.error instanceof Error ? loanResult.error.message : "Failed to load loan status";
+          nextErrors.lending = normalizeLendingError(loanResult.error);
         }
       } else {
         const loanData = loanResult.data as LoanStatusResponse;
@@ -118,6 +137,8 @@ function DashboardInner() {
         const auraData = loanData.aura ?? {};
         setLending((prev) => ({
           ...prev,
+          optedIn: Boolean(lendingData.optedIn),
+          auraOptedIn: Boolean(auraData.optedIn ?? lendingData.optedIn),
           activeLoan: Number(lendingData.activeLoan || 0),
           dueAmount: Number(lendingData.dueAmount || 0),
           dueTs: Number(lendingData.dueTs || 0),
