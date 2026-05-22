@@ -19,7 +19,7 @@ AlgoCrefi is a decentralised, non-custodial pool-based over-collateral as well a
 | Section            | Link                                                                                                  |
 | ------------------ | ----------------------------------------------------------------------------------------------------- |
 | **Live Demo**      | [algocrefi.netlify.app](https://algocrefi.netlify.app?utm_source=chatgpt.com)                         |
-| **Smart Contract** | [View on Lora Explorer](https://lora.algokit.io/testnet/application/758675636?utm_source=chatgpt.com) |
+| **Smart Contract** | [View on Lora Explorer](https://lora.algokit.io/testnet/application/758675636) |
 
 
 
@@ -29,7 +29,21 @@ git clone https://github.com/donendosted/AlgoCrefi-hackseries
 cd AlgoCrefi-hackseries/algocrefi-backend
 
 npm install
-cat > .env << 'EOF'
+
+cd ../algocrefi-frontend
+npm install
+
+cd ../algocrefi-contract/projects/algocrefi-contract
+algokit generate env-file -a target_network testnet
+algokit project run build
+algokit project deploy testnet
+
+```
+
+Create `.env` files manually in backend and frontend using these templates.
+
+### Backend `.env` template (`algocrefi-backend/.env`)
+```env
 PORT=5000
 MONGO_URI=mongodb://127.0.0.1:27017/algocrefi
 JWT_SECRET=change_this_secret
@@ -41,10 +55,10 @@ ALGOD_PORT=
 INDEXER_TOKEN=
 INDEXER_SERVER=https://testnet-idx.algonode.cloud
 INDEXER_PORT=
-POOL_APP_ID=758675636
-LENDING_APP_ID=758675636
-APP_ID=758675636
-AURA_APP_ID=758675636
+POOL_APP_ID=YOUR_DEPLOYED_APP_ID
+LENDING_APP_ID=YOUR_DEPLOYED_APP_ID
+APP_ID=YOUR_DEPLOYED_APP_ID
+AURA_APP_ID=YOUR_DEPLOYED_AURA_APP_ID
 USDC_ASA_ID=10458941
 USDC_DECIMALS=6
 MIN_AURA_FOR_UNSECURED=30
@@ -75,22 +89,14 @@ POOL_TVL_MAX_POINTS=25000
 ACTIVE_LOAN_COUNT_CACHE_TTL_MS=30000
 ACTIVE_LOAN_COUNT_SCAN_LIMIT=5000
 ACTIVE_LOAN_COUNT_CONCURRENCY=12
-EOF
+```
 
-cd ../algocrefi-frontend
-npm install
-cat > .env << 'EOF'
+### Frontend `.env` template (`algocrefi-frontend/.env`)
+```env
 NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
-NEXT_PUBLIC_POOL_APP_ID=758675636
-NEXT_PUBLIC_APP_ID=758675636
+NEXT_PUBLIC_POOL_APP_ID=YOUR_DEPLOYED_APP_ID
+NEXT_PUBLIC_APP_ID=YOUR_DEPLOYED_APP_ID
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=demo-walletconnect-project-id
-EOF
-
-cd ../algocrefi-contract/projects/algocrefi-contract
-algokit generate env-file -a target_network testnet
-algokit project run build
-algokit project deploy testnet
-
 ```
 
 
