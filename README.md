@@ -206,7 +206,7 @@ The platform is designed for:
 - **ALGO Depositors** - Earn passive yield through lending pools.
 
 
-## 📄 License
+## License
 
 MIT License - See LICENSE file for details.
 
