@@ -111,3 +111,52 @@ Failure to repay may result in:
 * Complete AURA reset
 * Permanent wallet ban from the protocol 
 
+## Why Algorand?
+
+Algorand offers:
+
+* Fast transaction finality
+* Ultra-low transaction fees
+* High scalability
+* Secure smart contracts
+
+These features make micro-lending efficient, affordable, and accessible for both lenders and borrowers.
+
+---
+
+## Target Users
+
+The platform is designed for:
+
+* Stablecoin holders
+* Developers
+* Crypto investors seeking liquidity without selling their assets
+
+### Key User Groups
+
+#### Developers & Builders
+
+Access on-chain micro and macro loans using **AURA points** instead of relying entirely on heavy collateral requirements.
+
+#### Crypto Investors
+
+Borrow funds without selling long-term crypto holdings.
+
+#### USDC Holders
+
+Get instant liquidity with no KYC requirements.
+
+#### ALGO Depositors
+
+Earn passive yield through lending pools.
+
+
+## 📄 License
+
+MIT License - See LICENSE file for details.
+
+---
+
+<p align="center">
+  Built with ❤️ by <strong>Team Bengal Tigers</strong> for Hack Series 3.0
+</p>
