@@ -16,9 +16,12 @@ AlgoCrefi is a decentralised, non-custodial pool-based over-collateral as well a
 
 ## Getting Started
 
-<h3>Visit the Live Link -
-<a href="https://algocrefi.netlify.app">algocrefi.netlify.app</a>
-</h3>
+| Section            | Link                                                                                                  |
+| ------------------ | ----------------------------------------------------------------------------------------------------- |
+| **Live Demo**      | [algocrefi.netlify.app](https://algocrefi.netlify.app?utm_source=chatgpt.com)                         |
+| **Smart Contract** | [View on Lora Explorer](https://lora.algokit.io/testnet/application/758675636?utm_source=chatgpt.com) |
+
+
 
 ### To build locally,
 ```bash
