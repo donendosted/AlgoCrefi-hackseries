@@ -134,21 +134,13 @@ The platform is designed for:
 
 ### Key User Groups
 
-#### Developers & Builders
+- **Developers & Builders** - Access on-chain micro and macro loans using **AURA points** instead of relying entirely on heavy collateral requirements.
 
-Access on-chain micro and macro loans using **AURA points** instead of relying entirely on heavy collateral requirements.
+- **Crypto Investors** - Borrow funds without selling long-term crypto holdings.
 
-#### Crypto Investors
+- **USDC Holders** - Get instant liquidity with no KYC requirements.
 
-Borrow funds without selling long-term crypto holdings.
-
-#### USDC Holders
-
-Get instant liquidity with no KYC requirements.
-
-#### ALGO Depositors
-
-Earn passive yield through lending pools.
+- **ALGO Depositors** - Earn passive yield through lending pools.
 
 
 ## 📄 License
