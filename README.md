@@ -1,6 +1,6 @@
 <img width="1600" height="555" alt="AlgoCrefi" src="https://github.com/user-attachments/assets/b8c68073-0996-4ed5-9585-440739b783bb" />
 
-AlgoCrefi is a decentralised, non-sutodial pool-based over-collateral as well as under-collateral credit platform. Investors diposit cryptocurrency in the pool expecting profit when the value of the pool increses by borrowers paying back with the interest they hold. Borrowers get instant loans based on their submitted collateral in the vault or their AURA score, which is their on-chain credit score. They gain aura against the interest they pay.
+AlgoCrefi is a decentralised, non-custodial pool-based over-collateral as well as under-collateral credit platform. Investors diposit cryptocurrency in the pool expecting profit when the value of the pool increses by borrowers paying back with the interest they hold. Borrowers get instant loans based on their submitted collateral in the vault or their AURA score, which is their on-chain credit score. They gain aura against the interest they pay.
 
 <h1 align="center"> AlgoCrefi</h1>
 
@@ -55,11 +55,13 @@ algokit project deploy testnet
 
 ### Technical Features
 
+- **X-Chain** - AlgroCrefi supports EVM based wallets like (MetaMask, Trust, Rainbow, Core etc.)
+- **Tinyman sdk** - Smart contract handles default liquidation with Tinyman DEX integration 
 - **ARC56 Compliance** - All smart contracts follow Algorand's latest ABI standard
 - **ARC4 Encoding** - Standardized method calling for interoperability
 - **Group Transactions** - Atomic operations for complex lending workflows
 - **Real-time Market Data** - Live OHLC candles, price feeds, and pool analytics
-- **Multi-Wallet Support** - Pera Wallet, Lute Wallet integration
+- **Multi-Wallet Support** - Multiple Algorand wallet integration (Like Lute, Pera, Defly)
 
 
 ## Architechture
@@ -68,3 +70,44 @@ algokit project deploy testnet
 
 
 ## AURA
+
+In DeFi, your wallet is your identity.
+**AURA** acts as the credit score for that identity (wallet).
+
+### How to Earn AURA
+
+In simple terms:
+
+* Repaying **1 ALGO** as interest increases your AURA by **+1**
+
+But the calculation is not fully linear.
+
+| Interest Paid  | AURA Increase |
+| -------------- | ------------- |
+| 1.0 - 1.9 ALGO | +1 AURA       |
+| 2.0 - 2.9 ALGO | +2 AURA       |
+| 3.0 - 3.9 ALGO | +3 AURA       |
+
+...and so on.
+
+### Non-Collateral Loans
+
+To become eligible for **non-collateral based loans**, a wallet must collect a minimum of **30 AURA**.
+
+Your maximum non-collateral loan limit depends on your AURA score:
+
+```text
+Loan Limit = 10% of AURA
+```
+
+Example:
+
+* 50 AURA → Eligible for a 5 ALGO loan without collateral
+
+### Default Penalty
+
+Failure to repay may result in:
+
+* Complete AURA reset
+* Permanent wallet ban from the protocol 
+
